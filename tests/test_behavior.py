@@ -96,3 +96,53 @@ def test_idle_shifts_toward_resting():
 def test_duration_within_range():
     c = Chooser(ACTIONS, random.Random(4))
     assert all(2 <= c.duration("walk") <= 8 for _ in range(200))
+
+
+REPO_TEXT = (ROOT / "actions.toml").read_text(encoding="utf-8")
+
+
+def test_real_app_needs_its_fixed_actions(tmp_path):
+    from phoebe_pet.behavior import REQUIRED, check_complete
+
+    check_complete(ACTIONS)
+    assert {"stand", "fall", "land", "drag", "resist", "think", "talk", "look_at_mouse", "wall_hold", "ceiling_hold"} <= REQUIRED
+    broken = dict(ACTIONS)
+    del broken["drag"]
+    with pytest.raises(ValueError, match="drag"):
+        check_complete(broken)
+
+
+def test_empty_file_is_reported_not_crashed(tmp_path):
+    from phoebe_pet.behavior import check_complete
+
+    with pytest.raises(ValueError, match="stand"):
+        check_complete(load_actions(write(tmp_path, "")))
+
+
+@pytest.mark.parametrize(
+    "old, new",
+    [
+        ("\nweight = 1", '\nweight = "6"'),
+        ("duration = [1, 2]", "duration = [[1], 4]"),
+        ("duration = [1, 2]", "duration = [1]"),
+        ("frame_ms = 100", 'frame_ms = "fast"'),
+        ('next = ["a"]', "next = 3"),
+        ("speed = 0", 'speed = "slow"'),
+    ],
+)
+def test_wrong_types_raise_value_error(tmp_path, old, new):
+    assert old in GOOD
+    with pytest.raises(ValueError):
+        load_actions(write(tmp_path, GOOD.replace(old, new)))
+
+
+def test_action_table_of_wrong_shape_raises_value_error(tmp_path):
+    with pytest.raises(ValueError):
+        load_actions(write(tmp_path, "action = 3"))
+
+
+def test_next_must_stay_on_the_same_surface(tmp_path):
+    text = REPO_TEXT.replace('next = ["walk", "run", "sit", "look_up", "stand"]', 'next = ["walk", "wall_hold"]')
+    assert text != REPO_TEXT
+    with pytest.raises(ValueError, match="wall_hold"):
+        load_actions(write(tmp_path, text))

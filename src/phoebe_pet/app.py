@@ -11,7 +11,7 @@ from PySide6.QtGui import QIcon, QScreen
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from . import fullscreen
-from .behavior import Chooser, load_actions
+from .behavior import Chooser, check_complete, load_actions
 from .bubble import BubbleWindow, InputWindow
 from .chat import ChatSession, ChatWorker
 from .config import Config, load_config
@@ -68,6 +68,7 @@ class PetApp(QObject):
         self._user_hidden = False
         self._fullscreen_hidden = False
         self._tray: QSystemTrayIcon | None = None
+        self._screen: QScreen | None = None
         self._wait_timer = QTimer(self)
         self._wait_timer.setSingleShot(True)
         self._wait_timer.timeout.connect(self._on_slow)
@@ -124,6 +125,9 @@ class PetApp(QObject):
         visible = not (self._user_hidden or self._fullscreen_hidden)
         if visible == self.window.isVisible():
             return
+        # A chat may be in flight; the bubble keeps collecting it out of sight
+        # and shows it when the pet comes back.
+        self.bubble.suppress(not visible)
         if visible:
             self.window.show()
             self.window.timer.start()
@@ -131,10 +135,22 @@ class PetApp(QObject):
             self.window.timer.stop()
             self.window.hide()
             self.input.hide()
-            self.bubble.hide()
-            if self._phase == SHOWING:
-                self._phase = IDLE
-                self.pet.end_chat()
+
+    def follow_screen(self, screen: QScreen) -> None:
+        """Live on `screen`: track its work area, now and when it changes."""
+        if self._screen is not None:
+            try:
+                self._screen.availableGeometryChanged.disconnect(self._on_work_area_changed)
+            except (RuntimeError, TypeError):  # the old screen is already gone
+                pass
+        self._screen = screen
+        screen.availableGeometryChanged.connect(self._on_work_area_changed)
+        self._on_work_area_changed()
+
+    @Slot()
+    def _on_work_area_changed(self, *_args) -> None:
+        if self._screen is not None:
+            self.pet.set_bounds(bounds_of(self._screen))
 
     @Slot()
     def poll(self) -> None:
@@ -258,6 +274,7 @@ def main() -> int:
     try:
         cfg = load_config(ROOT / "config.toml")
         actions = load_actions(ROOT / "actions.toml")
+        check_complete(actions)
         sprites = SpriteSet(ROOT / "assets" / cfg.character, cfg.scale)
     except (ValueError, OSError, SpriteError) as error:
         QMessageBox.critical(None, "페비", f"시작할 수 없어요.\n\n{error}")
@@ -268,7 +285,8 @@ def main() -> int:
     pet = Pet(actions, Chooser(actions, rng), bounds_of(screen), size, rng, cfg.speed)
     window = PetWindow(pet, sprites)
     pet_app = PetApp(cfg, pet, window, BubbleWindow(), InputWindow(), ChatSession(cfg))
-    screen.availableGeometryChanged.connect(lambda _rect: pet.set_bounds(bounds_of(screen)))
+    pet_app.follow_screen(screen)
+    app.primaryScreenChanged.connect(pet_app.follow_screen)
     app.aboutToQuit.connect(pet_app.shutdown)
     window.show()
     pet_app.start_background(QIcon(sprites.pixmap("shime1", False)))

@@ -33,6 +33,9 @@ class BubbleWindow(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self._text = ""
+        self._suppressed = False
+        self._finished = False
+        self._delay_ms: int | None = None
         self._anchor = QRect(0, 0, 1, 1)
         self._below = False
         self._label = QLabel()
@@ -80,12 +83,38 @@ class BubbleWindow(QWidget):
         """Empty the bubble for a new message; it appears with the first text."""
         self._timer.stop()
         self._text = ""
+        self._finished = False
         self._set_scroll_mode(False)
         self._label.setText("")
         self.hide()
 
+    def suppress(self, on: bool) -> None:
+        """While suppressed the bubble keeps collecting text but stays off screen."""
+        if on == self._suppressed:
+            return
+        self._suppressed = on
+        if on:
+            self._timer.stop()
+            self.hide()
+        elif self._text:
+            self._present()
+            if self._finished:
+                self._arm()
+
+    def _present(self) -> None:
+        if self._suppressed:
+            return
+        self.adjustSize()
+        self._reposition()
+        self.show()
+
+    def _arm(self) -> None:
+        if not self._scroll_mode and not self._suppressed:
+            self._timer.start(hide_delay_ms(self._text) if self._delay_ms is None else self._delay_ms)
+
     def append(self, delta: str) -> None:
         self._timer.stop()
+        self._finished = False
         self._text += delta
         if is_long(self._text):
             self._set_scroll_mode(True)
@@ -94,23 +123,20 @@ class BubbleWindow(QWidget):
             bar.setValue(bar.maximum())
         else:
             self._label.setText(self._text)
-        self.adjustSize()
-        self._reposition()
-        self.show()
+        self._present()
 
     def finish(self, delay_ms: int | None = None) -> None:
         """The message is complete: short ones go away on their own."""
-        if not self._scroll_mode:
-            self._timer.start(hide_delay_ms(self._text) if delay_ms is None else delay_ms)
+        self._finished = True
+        self._delay_ms = delay_ms
+        self._arm()
 
     def show_notice(self, text: str) -> None:
         self.start()
         self._label.setText(text)
         self._text = text
-        self.adjustSize()
-        self._reposition()
-        self.show()
-        self._timer.start(hide_delay_ms(text))
+        self._present()
+        self.finish()
 
     def follow(self, pet_rect: QRect) -> None:
         self._anchor = QRect(pet_rect)

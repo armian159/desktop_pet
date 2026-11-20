@@ -9,6 +9,10 @@ from pathlib import Path
 
 IDLE_AFTER = 60.0
 SURFACES = ("floor", "wall", "ceiling")
+# Names the program itself starts, so the table cannot do without them.
+REQUIRED = frozenset(
+    {"stand", "wall_hold", "ceiling_hold", "fall", "land", "drag", "resist", "think", "talk", "look_at_mouse"}
+)
 _REQUIRED = ("surface", "frames", "frame_ms", "speed", "duration", "weight", "idle_weight", "next")
 
 
@@ -36,10 +40,25 @@ def _frames(name: str, raw: dict) -> tuple[str, ...]:
     return frames
 
 
+def check_complete(actions: dict[str, Action]) -> None:
+    """Fail early, with the name, if an action the program relies on is absent."""
+    missing = sorted(REQUIRED - set(actions))
+    if missing:
+        raise ValueError(f"actions: required entries are missing: {', '.join(missing)}")
+
+
 def load_actions(path: Path) -> dict[str, Action]:
     """Read and validate the action table; specials become next-less Actions."""
     with path.open("rb") as f:
         raw = tomllib.load(f)
+    try:
+        return _build(raw)
+    except (TypeError, AttributeError, KeyError) as error:
+        # A value of the wrong shape (text for a number, a number for a table...).
+        raise ValueError(f"actions: malformed entry ({error})") from error
+
+
+def _build(raw: dict) -> dict[str, Action]:
     actions: dict[str, Action] = {}
     for name, spec in raw.get("action", {}).items():
         for key in _REQUIRED:
@@ -50,7 +69,7 @@ def load_actions(path: Path) -> dict[str, Action]:
         low, high = (float(v) for v in spec["duration"])
         if not 0 < low <= high:
             raise ValueError(f"actions: '{name}' has a bad duration range")
-        if not spec["next"]:
+        if not isinstance(spec["next"], list) or not spec["next"]:
             raise ValueError(f"actions: '{name}' needs at least one next action")
         if spec["weight"] < 0 or spec["idle_weight"] < 0:
             raise ValueError(f"actions: '{name}' has a negative weight")
@@ -72,6 +91,11 @@ def load_actions(path: Path) -> dict[str, Action]:
         for target in action.next:
             if target not in actions:
                 raise ValueError(f"actions: '{action.name}' points to unknown action '{target}'")
+            if actions[target].surface != action.surface:
+                raise ValueError(
+                    f"actions: '{action.name}' ({action.surface}) cannot be followed by '{target}' "
+                    f"({actions[target].surface}); the program handles moving between surfaces"
+                )
     for name, spec in raw.get("special", {}).items():
         if name in actions:
             raise ValueError(f"actions: '{name}' is defined twice")

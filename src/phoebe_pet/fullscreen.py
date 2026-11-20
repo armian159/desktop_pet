@@ -7,6 +7,8 @@ from ctypes import wintypes
 
 SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd"}  # the desktop and taskbar
 MONITOR_DEFAULTTONEAREST = 2
+GWL_STYLE = -16
+WS_CAPTION = 0x00C00000
 
 
 class _MonitorInfo(ctypes.Structure):
@@ -21,6 +23,12 @@ class _MonitorInfo(ctypes.Structure):
 def covers(win: tuple[int, int, int, int], mon: tuple[int, int, int, int]) -> bool:
     """True when rect `win` (left, top, right, bottom) hides all of `mon`."""
     return win[0] <= mon[0] and win[1] <= mon[1] and win[2] >= mon[2] and win[3] >= mon[3]
+
+
+def is_fullscreen(win: tuple[int, int, int, int], mon: tuple[int, int, int, int], style: int) -> bool:
+    """Covering the monitor is not enough: with the taskbar on auto-hide a
+    maximized window does too. Real fullscreen windows drop their title bar."""
+    return covers(win, mon) and (style & WS_CAPTION) != WS_CAPTION
 
 
 def foreground_is_fullscreen() -> bool:
@@ -45,6 +53,7 @@ def foreground_is_fullscreen() -> bool:
         if not user32.GetMonitorInfoW(wintypes.HANDLE(monitor), ctypes.byref(info)):
             return False
         m = info.rcMonitor
-        return covers((rect.left, rect.top, rect.right, rect.bottom), (m.left, m.top, m.right, m.bottom))
+        style = user32.GetWindowLongW(wintypes.HWND(hwnd), GWL_STYLE) & 0xFFFFFFFF
+        return is_fullscreen((rect.left, rect.top, rect.right, rect.bottom), (m.left, m.top, m.right, m.bottom), style)
     except (AttributeError, OSError):  # not Windows, or the call is unavailable
         return False
