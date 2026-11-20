@@ -6,9 +6,11 @@ import math
 import random
 from collections import deque
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 from .behavior import Action, Chooser
+from .mood import Mood
 from .physics import MAX_DT, Body, Bounds, Contact, clamp, on_floor, step_air
 
 EASE = 0.3  # s to reach or leave walking speed
@@ -55,12 +57,18 @@ class Pet:
         size: tuple[int, int],
         rng: random.Random,
         speed: float = 1.0,
+        mood: Mood | None = None,
     ) -> None:
         self._actions = actions
         self._chooser = chooser
         self._bounds = bounds
         self._rng = rng
         self._speed = speed
+        self.mood = mood if mood is not None else Mood(datetime.now())
+        self.mouse_near = False
+        self.speaking = False  # shows the talk frames while standing; changes nothing else
+        self._events: list[str] = []
+        self._thrown = False
         w, h = size
         x = rng.uniform(bounds.left, max(bounds.left, bounds.right - w))
         self._body = Body(x, bounds.bottom - h, 0.0, 0.0, w, h)
@@ -88,6 +96,8 @@ class Pet:
         dt = max(0.0, min(dt, MAX_DT))
         self.idle_seconds += dt
         self._elapsed += dt
+        cx, cy = self._body.x + self._body.w / 2, self._body.y + self._body.h / 2
+        self.mouse_near = math.hypot(mouse[0] - cx, mouse[1] - cy) < LOOK_RADIUS
         if self.mode is Mode.AUTO:
             self._tick_auto(dt)
         elif self.mode is Mode.AIR:
@@ -97,6 +107,11 @@ class Pet:
         elif self.mode is Mode.PREVIEW and self._elapsed >= PREVIEW_TIME:
             self._resume()
         return self._view(mouse)
+
+    def take_events(self) -> list[str]:
+        """Hand over the events queued since the last call ("thrown", "released", "woke")."""
+        events, self._events = self._events, []
+        return events
 
     def action_names(self) -> list[str]:
         return list(self._actions)
@@ -135,6 +150,7 @@ class Pet:
         self._drag_v = (0.0, 0.0)
         self._still = 0.0
         self._elapsed = 0.0
+        self.mood.on_interact()
         self.touch()
         self.drag_to(mouse, 0.0)
 
@@ -164,7 +180,13 @@ class Pet:
         vx, vy = self._drag_v
         if vx:
             self._facing_right = vx > 0
+        speed = math.hypot(vx, vy)
+        self.mood.on_throw(speed)
+        self.mood.on_resist(self._still)
+        if self._still >= RESIST_AFTER:
+            self._events.append("released")
         self._drop(vx, vy)
+        self._thrown = speed >= GRAB_SPEED
 
     def begin_think(self) -> None:
         self.touch()
@@ -206,6 +228,8 @@ class Pet:
         led_in = self._actions[self.action].intro
         self.action = name
         self._elapsed = 0.0
+        if name == "wake_up":
+            self._events.append("woke")
         action = self._actions[name]
         self._duration = self._chooser.duration(name) if action.next else 1.0
         if led_in and action.surface == "floor":
@@ -259,6 +283,7 @@ class Pet:
         self.action = "fall"
         self._elapsed = 0.0
         self._land_left = 0.0
+        self._thrown = False
 
     def _resume(self) -> None:
         """Back to normal life on the floor (or to standing still if paused)."""
@@ -298,7 +323,7 @@ class Pet:
                     else:
                         self._facing_right = hit_left
                         # Whatever normally follows (a turn back to the front, say), not a bare cut to standing.
-                        self._start(self._chooser.choose(self.action, self.idle_seconds))
+                        self._start(self._chooser.choose(self.action, self.idle_seconds, self.mood.name))
                     return
             elif action.surface == "wall":
                 body.y += step * self._climb_dir
@@ -321,7 +346,7 @@ class Pet:
             if action.surface != "floor" and not action.speed and self._rng.random() < LET_GO_CHANCE:
                 self._drop()
             else:
-                self._start(self._chooser.choose(self.action, self.idle_seconds))
+                self._start(self._chooser.choose(self.action, self.idle_seconds, self.mood.name))
 
     def _tick_air(self, dt: float) -> None:
         body = self._body
@@ -341,14 +366,23 @@ class Pet:
             body.vx = 0.0
             self._set_special("land")
             self._land_left = LAND_TIME
+            self._end_throw()
             return
         free = self._pending_chat is None and not self._paused
         if contact in (Contact.LEFT_WALL, Contact.RIGHT_WALL) and free and abs(vx) >= GRAB_SPEED:
+            self._end_throw()
             self._place_on_wall(left=contact is Contact.LEFT_WALL)
         elif contact is Contact.CEILING and free and abs(vy) >= GRAB_SPEED:
+            self._end_throw()
             body.vx = 0.0
             self.mode = Mode.AUTO
             self._start("ceiling_hold")
+
+    def _end_throw(self) -> None:
+        """The flight of a hard throw is over (landed or caught a wall or ceiling)."""
+        if self._thrown:
+            self._events.append("thrown")
+            self._thrown = False
 
     # ---- what to draw -----------------------------------------------------
 
@@ -382,6 +416,8 @@ class Pet:
             return View(x, y, self._frame(self.action), facing, False)
         action = self._actions[self.action]
         frame = self._frame(self.action)
+        if self.speaking and self.action == "stand":
+            frame = self._frame("talk")
         resting = self._lazy(action)
         if self.action in ("stand", "sit"):
             cx, cy = body.x + body.w / 2, body.y + body.h / 2

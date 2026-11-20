@@ -1,3 +1,4 @@
+import dataclasses
 import random
 from pathlib import Path
 
@@ -361,3 +362,68 @@ def test_climbing_down_a_wall_plays_the_climb_backwards():
     order = list(ACTIONS["wall_climb"].frames)
     assert up[0] == order[0] and down[0] == order[-1]
     assert [f for i, f in enumerate(down) if i % 5 == 0] == order[::-1]
+
+
+def run_until(pet, cond, cap=2000):
+    for _ in range(cap):
+        if cond():
+            break
+        pet.tick(0.016, (9000, 9000))
+    assert cond()
+
+
+def test_choose_receives_mood_name(pet, monkeypatch):
+    seen = []
+    monkeypatch.setattr(pet._chooser, "choose", lambda cur, idle, mood="calm": seen.append(mood) or "stand")
+    pet.mood.forced = "sleepy"
+    pet._duration = 0
+    pet.tick(0.016, (9000, 9000))
+    assert seen == ["sleepy"]
+
+
+def test_hard_throw_queues_thrown_on_landing_and_lowers_cheer(pet):
+    before = pet.mood.cheer
+    pet.grab((500, 300))
+    pet.drag_to((500, 300), 0.05)
+    pet.drag_to((1100, 300), 0.05)
+    pet.release()
+    assert pet.mood.cheer < before and pet.take_events() == []
+    run_until(pet, lambda: pet.mode is Mode.AUTO)
+    assert pet.take_events() == ["thrown"] and pet.take_events() == []
+
+
+def test_release_after_struggling_queues_released(pet):
+    pet.grab((500, 300))
+    for _ in range(80):
+        pet.drag_to((500, 300), 0.016)
+    pet.release()
+    run_until(pet, lambda: pet.mode is Mode.AUTO)
+    assert "released" in pet.take_events()
+
+
+def test_wake_up_queues_woke(qapp):
+    # assets/phoebe is not in git; load the repo actions.toml and add a copy of "stand" named "wake_up"
+    actions = load_actions(ROOT / "actions.toml")
+    actions["wake_up"] = dataclasses.replace(actions["stand"], name="wake_up")
+    rng = random.Random(0)
+    p = Pet(actions, Chooser(actions, rng), Bounds(0, 0, 1920, 1040), (128, 128), rng)
+    p._start("wake_up")
+    assert p.take_events() == ["woke"]
+
+
+def test_mouse_near(pet):
+    pet.tick(0.016, (9000, 9000))
+    assert not pet.mouse_near
+    cx = pet._body.x + 64
+    cy = pet._body.y + 64
+    pet.tick(0.016, (int(cx), int(cy)))
+    assert pet.mouse_near
+
+
+def test_speaking_shows_talk_only_while_standing(pet):
+    pet.force("stand")
+    pet.speaking = True
+    assert pet.tick(0.016, (9000, 9000)).frame in pet._actions["talk"].frames
+    assert pet.mode is Mode.AUTO and pet.action == "stand"
+    pet.force("sit")
+    assert pet.tick(0.016, (9000, 9000)).frame not in pet._actions["talk"].frames
