@@ -284,6 +284,8 @@ class PetApp(QObject):
 
     def _abandon_speech(self) -> None:
         """Forget the request in flight; whatever it sends back later is ignored."""
+        if self._speech_live is not None and self.speech_worker is not None:
+            self.speech_worker.requestInterruption()  # cooperative; never waited on
         self._speech_live = None
         self._first_timer.stop()
         self._total_timer.stop()

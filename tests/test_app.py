@@ -23,12 +23,13 @@ class FakeWorker(QObject):
         super().__init__()
         self.payload = payload
         self.started = False
+        self.interrupted = False
 
     def start(self):
         self.started = True
 
     def requestInterruption(self):
-        pass
+        self.interrupted = True
 
     def isRunning(self):
         return False
@@ -361,3 +362,9 @@ def test_gap_restarts_when_a_chat_reply_is_closed(app_live):
     app_live.bubble.close_button.click()
     assert app_live.speaker.quiet_seconds == 0
     app_live.life_tick(30); assert app_live.speech_worker is None
+
+
+def test_abandoned_speech_asks_the_worker_to_stop(app_live):
+    app_live.speak("calm"); speech = app_live.speech_worker
+    assert not speech.interrupted
+    app_live.open_input(); assert speech.interrupted
