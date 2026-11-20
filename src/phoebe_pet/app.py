@@ -210,6 +210,8 @@ class PetApp(QObject):
         for event in events:
             speaker.note_event(event, clock)
         speaker.tick(seconds, pet.mood.name)
+        if self._speech_live is not None:
+            return  # a line is on its way; its event must stay pending for spoke()
         key = speaker.due()
         if key is None:
             return

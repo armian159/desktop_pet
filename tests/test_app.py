@@ -272,6 +272,7 @@ def test_user_chat_abandons_pending_speech(app_live):
     app_live.speak("calm"); speech = app_live.speech_worker
     app_live.input.submitted.emit("안녕"); assert app_live.worker.started
     speech.done.emit("혼잣말"); assert app_live.bubble.text() != "혼잣말"
+    assert all(m["content"] != "혼잣말" for m in app_live.session.history)
 
 
 @pytest.mark.parametrize("block", ["paused", "dragged", "hidden", "input_open", "user_chat_bubble"])
@@ -298,3 +299,13 @@ def test_thrown_event_triggers_thrown_line(app_live, pet):
 
 def test_mood_ticks_while_hidden(app_live, pet):
     app_live.toggle_hidden(); before = pet.mood.boredom; app_live.life_tick(600); assert pet.mood.boredom > before
+
+
+def test_event_cooldown_survives_a_poll_while_waiting_for_the_reply(app_live, pet):
+    pet._events.append("thrown"); app_live.life_tick(1); app_live.life_tick(5)
+    first = app_live.speech_worker
+    app_live.life_tick(1)  # a poll while the reply is still on its way
+    first.done.emit("앗, 깜짝이야!"); assert app_live.bubble.text() == "앗, 깜짝이야!"
+    app_live.bubble.close_button.click(); assert not app_live.bubble.isVisible() and not pet.speaking
+    pet._events.append("thrown"); app_live.life_tick(1); app_live.life_tick(5)
+    assert app_live.speech_worker is first
