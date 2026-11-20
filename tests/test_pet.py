@@ -393,10 +393,12 @@ def test_hard_throw_queues_thrown_on_landing_and_lowers_cheer(pet):
 
 
 def test_release_after_struggling_queues_released(pet):
+    before = pet.mood.cheer
     pet.grab((500, 300))
     for _ in range(80):
         pet.drag_to((500, 300), 0.016)
     pet.release()
+    assert pet.mood.cheer == pytest.approx(before - 0.1)  # struggled, but not thrown
     run_until(pet, lambda: pet.mode is Mode.AUTO)
     assert "released" in pet.take_events()
 
@@ -427,3 +429,12 @@ def test_speaking_shows_talk_only_while_standing(pet):
     assert pet.mode is Mode.AUTO and pet.action == "stand"
     pet.force("sit")
     assert pet.tick(0.016, (9000, 9000)).frame not in pet._actions["talk"].frames
+
+
+def test_gentle_release_leaves_cheer_alone(pet):
+    before = pet.mood.cheer
+    pet.grab((500, 300))
+    pet.drag_to((500, 300), 0.05)
+    pet.drag_to((510, 300), 0.05)
+    pet.release()
+    assert pet.mood.cheer == before

@@ -72,13 +72,13 @@ class Mood:
         self.boredom = _clamp(self.boredom - 0.5)
         self.cheer = _clamp(self.cheer + 0.15)
 
-    def on_throw(self, speed: float) -> None:
-        if speed >= 300:
-            self.cheer = _clamp(self.cheer - 0.25)
+    def on_throw(self) -> None:
+        """Thrown hard; the pet decides what counts as hard."""
+        self.cheer = _clamp(self.cheer - 0.25)
 
-    def on_resist(self, seconds: float) -> None:
-        if seconds >= 1.0:
-            self.cheer = _clamp(self.cheer - 0.1)
+    def on_resist(self) -> None:
+        """Released after struggling in the user's grip."""
+        self.cheer = _clamp(self.cheer - 0.1)
 
     @property
     def name(self) -> str:

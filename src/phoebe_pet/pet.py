@@ -180,13 +180,14 @@ class Pet:
         vx, vy = self._drag_v
         if vx:
             self._facing_right = vx > 0
-        speed = math.hypot(vx, vy)
-        self.mood.on_throw(speed)
-        self.mood.on_resist(self._still)
+        thrown = math.hypot(vx, vy) >= GRAB_SPEED
+        if thrown:
+            self.mood.on_throw()
         if self._still >= RESIST_AFTER:
+            self.mood.on_resist()
             self._events.append("released")
         self._drop(vx, vy)
-        self._thrown = speed >= GRAB_SPEED
+        self._thrown = thrown
 
     def begin_think(self) -> None:
         self.touch()

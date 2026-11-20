@@ -33,10 +33,8 @@ def test_cheer_drifts_back_to_resting_value():
 
 
 def test_events():
-    m = Mood(at(14)); m.on_throw(299); assert m.cheer == 0.6
-    m.on_throw(800); assert m.cheer == pytest.approx(0.35)
-    m.on_resist(0.5); assert m.cheer == pytest.approx(0.35)
-    m.on_resist(2.0); assert m.cheer == pytest.approx(0.25)
+    m = Mood(at(14)); m.on_throw(); assert m.cheer == pytest.approx(0.35)
+    m.on_resist(); assert m.cheer == pytest.approx(0.25)
     m.boredom = 0.9; m.on_chat_done(); assert m.boredom == pytest.approx(0.4) and m.cheer == pytest.approx(0.4)
     m.on_interact(); assert m.boredom == pytest.approx(0.1)
 
