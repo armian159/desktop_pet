@@ -1,3 +1,5 @@
+import re
+
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,8 @@ def test_repo_lines_are_short_and_plain():
         for line in lines:
             assert len(line) < 40, (key, line)
             assert line.count("방랑자님") <= 1, (key, line)
+            assert re.search(r"요[.!?…~]*$", line), (key, line)
+            assert not re.search(r"(^|\s)(어|저|꺄), (어|저)", line), (key, line)
 
 
 def test_missing_file_is_empty(tmp_path):
