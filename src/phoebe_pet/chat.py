@@ -76,6 +76,11 @@ class ChatSession:
     def fail(self) -> None:
         self._pending = None
 
+    def add_assistant(self, text: str) -> None:
+        """Record something the pet said unprompted."""
+        if text.strip():
+            self.history.append({"role": "assistant", "content": text})
+
     def reset(self) -> None:
         self.history.clear()
         self._pending = None

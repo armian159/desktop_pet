@@ -83,6 +83,13 @@ def test_empty_reply_counts_as_failure():
     assert s.history == [] and not s.busy
 
 
+def test_add_assistant_records_unprompted_line_and_skips_blank():
+    s = ChatSession(CFG)
+    s.add_assistant("  ")
+    s.add_assistant("hi")
+    assert s.history == [{"role": "assistant", "content": "hi"}]
+
+
 def test_parse_delta_and_done():
     assert parse_stream_line('{"message":{"content":"안"},"done":false}'.encode()) == ("안", False)
     assert parse_stream_line(b'{"message":{"content":""},"done":true}') == ("", True)

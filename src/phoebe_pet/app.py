@@ -6,16 +6,17 @@ import random
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QTimer, Slot
-from PySide6.QtGui import QScreen
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QObject, QPoint, QTimer, Slot
+from PySide6.QtGui import QIcon, QScreen
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
+from . import fullscreen
 from .behavior import Chooser, load_actions
 from .bubble import BubbleWindow, InputWindow
 from .chat import ChatSession, ChatWorker
 from .config import Config, load_config
 from .frames import SpriteError
-from .pet import Pet
+from .pet import Mode, Pet
 from .pet_window import PetWindow
 from .physics import Bounds
 from .sprites import SpriteSet
@@ -23,6 +24,9 @@ from .sprites import SpriteSet
 ROOT = Path(__file__).resolve().parents[2]
 MSG_WAITING = "잠깐만요, 생각을 정리하고 있어요..."
 MSG_NO_REPLY = "음... 뭐라고 해야 할지 모르겠어요."
+MONOLOGUE_PROMPT = "(방랑자님이 한동안 말이 없다. 페비가 혼잣말처럼 한 문장만 가볍게 말을 건다.)"
+MONOLOGUE_GAP = (15 * 60, 40 * 60)  # s of quiet before speaking up, picked anew each time
+POLL_MS = 1000
 
 # Where one chat turn stands.
 IDLE, WAITING, STREAMING, SHOWING = "idle", "waiting", "streaming", "showing"
@@ -34,7 +38,7 @@ def bounds_of(screen: QScreen) -> Bounds:
 
 
 class PetApp(QObject):
-    """Glue between the pet, its windows and the chat session."""
+    """Glue between the pet, its windows, the menu and the chat session."""
 
     def __init__(
         self,
@@ -55,16 +59,111 @@ class PetApp(QObject):
         self.session = session
         self.worker = None
         self.wait_notice_ms = 8000
+        self.monologue_after = random.uniform(*MONOLOGUE_GAP)
         self._worker_factory = worker_factory
         self._phase = IDLE
+        self._monologue = False
+        self._quiet = 0.0
+        self._last_idle: float | None = None
+        self._user_hidden = False
+        self._fullscreen_hidden = False
+        self._tray: QSystemTrayIcon | None = None
         self._wait_timer = QTimer(self)
         self._wait_timer.setSingleShot(True)
         self._wait_timer.timeout.connect(self._on_slow)
+        self._poll_timer = QTimer(self)
+        self._poll_timer.timeout.connect(self.poll)
+        self.menu = self._build_menu()
         window.double_clicked.connect(self.open_input)
+        window.context_requested.connect(self._show_menu)
         window.moved.connect(bubble.follow)
         input.submitted.connect(self.submit)
         bubble.closed.connect(self._on_bubble_closed)
         bubble.follow(window.geometry())
+
+    # ---- menu ---------------------------------------------------------------
+
+    def _build_menu(self) -> QMenu:
+        menu = QMenu()
+        self._pause_action = menu.addAction("일시정지", self.toggle_pause)
+        menu.addAction("대화 초기화", self.reset_chat)
+        self._hide_action = menu.addAction("숨기기", self.toggle_hidden)
+        menu.addSeparator()
+        menu.addAction("종료", QApplication.quit)
+        return menu
+
+    @Slot(QPoint)
+    def _show_menu(self, pos: QPoint) -> None:
+        self.menu.popup(pos)
+
+    def start_background(self, icon: QIcon) -> None:
+        """Tray icon and the once-a-second housekeeping; not used in tests."""
+        self._tray = QSystemTrayIcon(icon, self)
+        self._tray.setToolTip("페비")
+        self._tray.setContextMenu(self.menu)
+        self._tray.show()
+        self._poll_timer.start(POLL_MS)
+
+    @Slot()
+    def toggle_pause(self) -> None:
+        paused = self._pause_action.text() == "일시정지"
+        self.pet.set_paused(paused)
+        self._pause_action.setText("다시 움직이기" if paused else "일시정지")
+
+    @Slot()
+    def reset_chat(self) -> None:
+        self.session.reset()
+
+    @Slot()
+    def toggle_hidden(self) -> None:
+        self._user_hidden = not self._user_hidden
+        self._hide_action.setText("보이기" if self._user_hidden else "숨기기")
+        self._apply_visibility()
+
+    def _apply_visibility(self) -> None:
+        visible = not (self._user_hidden or self._fullscreen_hidden)
+        if visible == self.window.isVisible():
+            return
+        if visible:
+            self.window.show()
+            self.window.timer.start()
+        else:
+            self.window.timer.stop()
+            self.window.hide()
+            self.input.hide()
+            self.bubble.hide()
+            if self._phase == SHOWING:
+                self._phase = IDLE
+                self.pet.end_chat()
+
+    @Slot()
+    def poll(self) -> None:
+        self._fullscreen_hidden = fullscreen.foreground_is_fullscreen()
+        self._apply_visibility()
+        self.idle_tick(POLL_MS / 1000)
+
+    # ---- speaking up on its own ------------------------------------------------
+
+    def idle_tick(self, seconds: float) -> None:
+        """Count quiet time; any interaction with the pet starts the count over."""
+        idle = self.pet.idle_seconds
+        if self._last_idle is not None and idle < self._last_idle:
+            self._quiet = 0.0
+        self._last_idle = idle
+        self._quiet += seconds
+        if not self.cfg.monologue or self._quiet < self.monologue_after:
+            return
+        if self._phase != IDLE or self.session.busy or not self.window.isVisible():
+            return
+        if self.pet.mode not in (Mode.AUTO, Mode.PAUSED):
+            return
+        self._quiet = 0.0
+        self.monologue_after = random.uniform(*MONOLOGUE_GAP)
+        self._monologue = True
+        self.bubble.start()
+        self._request(self.session.payload([{"role": "user", "content": MONOLOGUE_PROMPT}]))
+
+    # ---- chat -----------------------------------------------------------------
 
     @Slot()
     def open_input(self) -> None:
@@ -73,9 +172,12 @@ class PetApp(QObject):
 
     @Slot(str)
     def submit(self, text: str) -> None:
+        if self._phase in (WAITING, STREAMING):
+            return
         payload = self.session.begin(text)
         if payload is None:
             return
+        self._monologue = False
         self.bubble.start()
         self.pet.begin_think()
         self._request(payload)
@@ -87,7 +189,8 @@ class PetApp(QObject):
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
         self.worker.start()
-        self._wait_timer.start(self.wait_notice_ms)
+        if not self._monologue:
+            self._wait_timer.start(self.wait_notice_ms)
 
     @Slot()
     def _on_slow(self) -> None:
@@ -107,8 +210,14 @@ class PetApp(QObject):
     @Slot(str)
     def _on_done(self, reply: str) -> None:
         self._wait_timer.stop()
-        self.session.succeed(reply)
+        if self._monologue:
+            self.session.add_assistant(reply)
+        else:
+            self.session.succeed(reply)
         if self._phase == WAITING:
+            if self._monologue:
+                self._phase = IDLE
+                return
             self.bubble.show_notice(MSG_NO_REPLY)
         else:
             self.bubble.finish()
@@ -117,10 +226,12 @@ class PetApp(QObject):
     @Slot(str)
     def _on_failed(self, message: str) -> None:
         self._wait_timer.stop()
-        self.session.fail()
         self._phase = IDLE
-        self.bubble.show_notice(message)
         self.pet.end_chat()
+        if self._monologue:
+            return  # nobody asked; fail quietly
+        self.session.fail()
+        self.bubble.show_notice(message)
 
     @Slot()
     def _on_bubble_closed(self) -> None:
@@ -130,11 +241,14 @@ class PetApp(QObject):
 
     def shutdown(self) -> None:
         self._wait_timer.stop()
+        self._poll_timer.stop()
         self.window.timer.stop()
         if self.worker is not None and self.worker.isRunning():
             self.worker.requestInterruption()
             self.worker.wait(2000)
-        for widget in (self.input, self.bubble, self.window):
+        if self._tray is not None:
+            self._tray.hide()
+        for widget in (self.menu, self.input, self.bubble, self.window):
             widget.hide()
 
 
@@ -157,4 +271,5 @@ def main() -> int:
     screen.availableGeometryChanged.connect(lambda _rect: pet.set_bounds(bounds_of(screen)))
     app.aboutToQuit.connect(pet_app.shutdown)
     window.show()
+    pet_app.start_background(QIcon(sprites.pixmap("shime1", False)))
     return app.exec()

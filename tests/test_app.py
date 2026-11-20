@@ -108,3 +108,119 @@ def test_bubble_follows_the_pet(app_state, win, pet):
     pet._place_on_wall(left=True, y=300)
     win.step()
     assert app_state.bubble.pos() != before
+
+
+# ---- menu, hiding, monologue -------------------------------------------------
+
+from phoebe_pet import fullscreen  # noqa: E402
+
+
+@pytest.fixture
+def menu(app_state):
+    return app_state.menu
+
+
+def find(menu, text):
+    return next(a for a in menu.actions() if a.text() == text)
+
+
+def test_menu_items(menu):
+    assert [a.text() for a in menu.actions() if not a.isSeparator()] == ["일시정지", "대화 초기화", "숨기기", "종료"]
+
+
+def test_pause_toggles_pet_and_label(menu, pet):
+    act = menu.actions()[0]
+    act.trigger()
+    assert pet.mode is Mode.PAUSED and act.text() == "다시 움직이기"
+    act.trigger()
+    assert pet.mode is Mode.AUTO and act.text() == "일시정지"
+
+
+def test_reset_clears_history(menu, session):
+    session.begin("a")
+    session.succeed("A")
+    find(menu, "대화 초기화").trigger()
+    assert session.history == []
+
+
+def test_hide_and_show(menu, win):
+    act = find(menu, "숨기기")
+    act.trigger()
+    assert not win.isVisible() and act.text() == "보이기"
+    act.trigger()
+    assert win.isVisible()
+
+
+def test_hidden_pet_stops_ticking(menu, win):
+    find(menu, "숨기기").trigger()
+    assert not win.timer.isActive()
+    find(menu, "보이기").trigger()
+    assert win.timer.isActive()
+
+
+def test_fullscreen_hides_and_restores(app_state, win, monkeypatch):
+    monkeypatch.setattr(fullscreen, "foreground_is_fullscreen", lambda: True)
+    app_state.poll()
+    assert not win.isVisible()
+    monkeypatch.setattr(fullscreen, "foreground_is_fullscreen", lambda: False)
+    app_state.poll()
+    assert win.isVisible()
+
+
+def test_fullscreen_does_not_override_manual_hide(app_state, win, menu, monkeypatch):
+    find(menu, "숨기기").trigger()
+    monkeypatch.setattr(fullscreen, "foreground_is_fullscreen", lambda: False)
+    app_state.poll()
+    assert not win.isVisible()
+
+
+def test_right_click_pops_up_the_menu(app_state, win, menu):
+    from PySide6.QtCore import QPoint
+
+    win.context_requested.emit(QPoint(300, 300))
+    assert menu.isVisible()
+    menu.hide()
+
+
+def test_monologue_off_by_default_never_fires(app_state):
+    app_state.idle_tick(seconds=3600)
+    assert app_state.worker is None
+
+
+@pytest.fixture
+def app_state_monologue_on(qapp, pet, win, session):
+    state = PetApp(Config(monologue=True), pet, win, BubbleWindow(), InputWindow(), session, worker_factory=FakeWorker)
+    yield state
+    state.shutdown()
+
+
+def test_monologue_fires_after_long_quiet(app_state_monologue_on):
+    app_state_monologue_on.idle_tick(seconds=60)
+    assert app_state_monologue_on.worker is None
+    app_state_monologue_on.idle_tick(seconds=3600)
+    assert app_state_monologue_on.worker.started
+
+
+def test_monologue_not_stored_as_user_turn(app_state_monologue_on, session):
+    app_state_monologue_on.idle_tick(seconds=3600)
+    app_state_monologue_on.worker.delta.emit("오늘 하늘이 맑네요.")
+    app_state_monologue_on.worker.done.emit("오늘 하늘이 맑네요.")
+    assert session.history == [{"role": "assistant", "content": "오늘 하늘이 맑네요."}]
+
+
+def test_user_cannot_start_a_second_request_during_monologue(app_state_monologue_on):
+    app_state_monologue_on.idle_tick(seconds=3600)
+    first = app_state_monologue_on.worker
+    app_state_monologue_on.input.submitted.emit("안녕")
+    assert app_state_monologue_on.worker is first
+
+
+def test_interaction_resets_the_quiet_clock(app_state_monologue_on, pet):
+    app_state_monologue_on.monologue_after = 900
+    app_state_monologue_on.idle_tick(seconds=800)
+    pet.tick(0.05, (-9999, -9999))
+    app_state_monologue_on.idle_tick(seconds=1)
+    pet.touch()
+    app_state_monologue_on.idle_tick(seconds=800)
+    app_state_monologue_on.idle_tick(seconds=50)
+    assert app_state_monologue_on.worker is None
