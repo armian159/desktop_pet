@@ -354,7 +354,10 @@ class Pet:
 
     def _frame(self, name: str) -> str:
         action = self._actions[name]
-        return action.frames[int(self._elapsed * 1000 / action.frame_ms) % len(action.frames)]
+        index = int(self._elapsed * 1000 / action.frame_ms) % len(action.frames)
+        if action.surface == "wall" and action.speed and self._climb_dir > 0 and self.mode is Mode.AUTO:
+            index = len(action.frames) - 1 - index  # coming down: the climb, played backwards
+        return action.frames[index]
 
     @staticmethod
     def _lazy(action: Action) -> bool:

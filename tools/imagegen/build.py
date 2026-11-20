@@ -73,7 +73,7 @@ FRAMES = {
 SEQUENCES = {
     "resist": ("wan_resist", 32, False, 98, "held"),
     "fall": ("wan_fall", 32, False, 104, "floor"),
-    "climb": ("wan_climb", 32, False, 112, "wall"),
+    "climb": ("u_wall", 32, False, None, "wall"),  # None: drawn at the floor clips' scale, it continues from them
     "ceiling": ("wan_ceiling", 32, False, 114, "ceiling"),
 }
 
@@ -88,9 +88,9 @@ ACTION_CHANGES = {
     "action.sit_dangle": {"frames": "{sit}", "frame_ms": "62", "offset": "[0, 0]"},
     "action.lie": {"frames": "{sleep}", "frame_ms": "62", "next": '["wake_up"]'},
     "action.creep": {"frames": "{creep}", "frame_ms": "62", "next": '["doze_off", "get_up"]'},
-    "action.wall_hold": {"frames": '["climb01"]', "offset": "{climb_offset}"},
+    "action.wall_hold": {"frames": "{climb_hold}", "frame_ms": "125", "offset": "{climb_offset}"},
     "action.wall_climb": {"frames": "{climb}", "frame_ms": "62", "offset": "{climb_offset}"},
-    "action.ceiling_hold": {"frames": '["ceiling01"]', "offset": "{ceiling_offset}"},
+    "action.ceiling_hold": {"frames": "{ceiling_hold}", "frame_ms": "125","offset": "{ceiling_offset}"},
     "action.ceiling_move": {"frames": "{ceiling}", "frame_ms": "62", "offset": "{ceiling_offset}"},
     "special.fall": {"frames": "{fall}", "frame_ms": "62"},
     "special.land": {"frames": "{land}", "frame_ms": "40"},
@@ -209,7 +209,9 @@ def cut_sequence(prefix: str, count: int, flip: bool, target, where: str = "floo
         pieces.append(piece.transpose(Image.FLIP_LEFT_RIGHT) if flip else piece)
     boxes = [_box(f) for f in pieces]
     box = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
-    if isinstance(target, tuple):
+    if target is None:
+        scale = floor_placement()[0]
+    elif isinstance(target, tuple):
         scale = target[1] / (boxes[0][2] - boxes[0][0])
     else:
         scale = target / (boxes[0][3] - boxes[0][1])
@@ -345,6 +347,8 @@ def main() -> None:
         frames, offset = cut_sequence(prefix, count, flip, target, where)
         save(name, frames)
         lists[name + "_offset"] = f"[{offset[0]}, {offset[1]}]"
+        # holding on: the first few frames back and forth, a small shift of weight instead of a frozen picture
+        lists[name + "_hold"] = "[" + ", ".join(f'"{name}{i:02d}"' for i in (1, 2, 3, 4, 3, 2)) + "]"
     write_actions(out, lists)
     cache: dict[str, Image.Image] = {}
     frames = {}

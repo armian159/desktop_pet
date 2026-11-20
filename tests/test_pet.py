@@ -347,3 +347,17 @@ def test_fast_animation_is_not_resting_even_when_standing_still(tmp_path):
     pet = Pet(quick, Chooser(quick, rng), B, (128, 128), rng)
     assert pet.action == "stand" and pet.tick(0.0, FAR).resting is False
     assert make().tick(0.0, FAR).resting is True  # the default stand is one 500 ms picture
+
+
+def test_climbing_down_a_wall_plays_the_climb_backwards():
+    def frames(direction):
+        pet = make()
+        pet._place_on_wall(left=True, y=500)
+        pet._start("wall_climb")
+        pet._climb_dir = direction
+        return [pet.tick(0.05, FAR).frame for _ in range(30)]
+
+    up, down = frames(-1), frames(1)
+    order = list(ACTIONS["wall_climb"].frames)
+    assert up[0] == order[0] and down[0] == order[-1]
+    assert [f for i, f in enumerate(down) if i % 5 == 0] == order[::-1]

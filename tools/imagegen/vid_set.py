@@ -39,10 +39,11 @@ CLIPS = {
     "u_creep": (("u_tolie", 33), True, "A chibi girl lying flat on her stomach crawls in place toward the left, her arms reach forward and pull one after the other, her body wiggles" + SAME),
     "u_tosleep": (("u_tolie", 33), False, "A chibi girl lying flat on her stomach slowly closes her eyes, lowers her head onto the ground and falls asleep, then sleeps still with her eyes closed"),
     "u_sleep": (("u_tosleep", 33), True, "A chibi girl sleeps lying flat on her stomach with her eyes closed, her body rises and falls slowly with each breath"),
-    # in the air and on walls: each from its own image (build.py sizes them to match)
+    "u_towall": (("u_towalk", 17), False, "A chibi girl seen from the side facing left reaches both hands forward and grabs a vertical wall at the left edge of the picture, then climbs straight up the wall in side view, her hands reach up one after the other and her feet push against the wall alternately, her body stays close to the wall" + SAME),
+    "u_wall": (("u_towall", 33), True, "A chibi girl seen from the side climbs straight up a vertical wall at the left edge of the picture, her hands reach up one after the other and her feet step up alternately, her body stays close to the wall and bobs slightly, her long hair sways" + SAME),
+    # in the air and on the ceiling: each from its own image (build.py sizes them to match)
     "wan_resist": ("set_resist_s101", True, "A chibi girl struggles in midair, flailing her arms and kicking her legs quickly, eyes shut tight"),
     "wan_fall": ("set_fall_s101", True, "A chibi girl falls through the air, her arms wave, her hair and clothes flutter upward in the wind"),
-    "wan_climb": ("set_ceiling2_s201", True, "A chibi girl climbs straight upward, her raised arms reach up one after the other, her legs kick alternately"),
     "wan_ceiling": ("set_ceiling2_s200", True, "A chibi girl hangs from above by her raised hands, her legs dangle and swing gently from side to side"),
 }
 
