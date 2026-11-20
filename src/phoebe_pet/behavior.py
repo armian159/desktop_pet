@@ -29,6 +29,7 @@ class Action:
     next: tuple[str, ...]
     resting: bool
     offset: tuple[int, int] = (0, 0)
+    intro: bool = False  # leads into the next action: picks its direction, which that action then keeps
 
 
 def _frames(name: str, raw: dict) -> tuple[str, ...]:
@@ -86,6 +87,7 @@ def _build(raw: dict) -> dict[str, Action]:
             next=tuple(spec["next"]),
             resting=float(spec["speed"]) == 0,
             offset=(int(dx), int(dy)),
+            intro=bool(spec.get("intro", False)),
         )
     for action in list(actions.values()):
         for target in action.next:
@@ -118,4 +120,7 @@ class Chooser:
         return self._rng.choices(options, weights)[0]
 
     def duration(self, name: str) -> float:
-        return self._rng.uniform(*self._actions[name].duration)
+        """A time from the action's range, rounded to whole runs of its frames so it ends where it began."""
+        action = self._actions[name]
+        loop = len(action.frames) * action.frame_ms / 1000
+        return max(1, round(self._rng.uniform(*action.duration) / loop)) * loop

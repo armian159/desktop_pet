@@ -202,11 +202,14 @@ class Pet:
     # ---- test and internal entry points ---------------------------------
 
     def _start(self, name: str) -> None:
+        led_in = self._actions[self.action].intro
         self.action = name
         self._elapsed = 0.0
         action = self._actions[name]
         self._duration = self._chooser.duration(name) if action.next else 1.0
-        if action.speed and action.surface == "floor":
+        if led_in and action.surface == "floor":
+            pass  # the intro before this already turned the pet the way it will go
+        elif (action.speed or action.intro) and action.surface == "floor":
             b, body = self._bounds, self._body
             if body.x <= b.left:
                 self._facing_right = True
@@ -293,7 +296,8 @@ class Pet:
                         self._place_on_wall(left=hit_left)
                     else:
                         self._facing_right = hit_left
-                        self._start("stand")
+                        # Whatever normally follows (a turn back to the front, say), not a bare cut to standing.
+                        self._start(self._chooser.choose(self.action, self.idle_seconds))
                     return
             elif action.surface == "wall":
                 body.y += step * self._climb_dir

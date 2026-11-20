@@ -281,3 +281,58 @@ def test_chat_takes_over_a_preview(pet):
     pet.force("resist")
     pet.begin_think()
     assert pet.mode is Mode.THINK
+
+
+INTRO = """
+[action.stand]
+surface = "floor"
+frames = ["shime1"]
+frame_ms = 100
+speed = 0
+duration = [1, 1]
+weight = 1
+idle_weight = 1
+next = ["turn"]
+
+[action.turn]
+surface = "floor"
+frames = ["t1", "t2", "t3", "t4"]
+frame_ms = 100
+speed = 0
+duration = [0.4, 0.4]
+weight = 1
+idle_weight = 1
+next = ["walk"]
+intro = true
+
+[action.walk]
+surface = "floor"
+frames = ["w1", "w2"]
+frame_ms = 100
+speed = 60
+duration = [1, 1]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+"""
+
+
+@pytest.mark.parametrize("seed", range(30))
+def test_intro_picks_the_direction_and_the_next_action_keeps_it(seed, tmp_path):
+    path = tmp_path / "actions.toml"
+    path.write_text(INTRO, encoding="utf-8")
+    actions = load_actions(path)
+    rng = random.Random(seed)
+    pet = Pet(actions, Chooser(actions, rng), B, (128, 128), rng)
+    pet._body.x = B.right - 128  # at the right edge the only way to walk is left
+    pet._facing_right = True
+    pet._start("turn")
+    assert pet._facing_right is False
+    pet._body.x = 900
+    turning = pet._facing_right
+    for _ in range(30):
+        pet._facing_right = turning
+        pet._start("turn")
+        turning = pet._facing_right
+        pet._start("walk")
+        assert pet._facing_right is turning

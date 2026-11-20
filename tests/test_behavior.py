@@ -146,3 +146,18 @@ def test_next_must_stay_on_the_same_surface(tmp_path):
     assert text != REPO_TEXT
     with pytest.raises(ValueError, match="wall_hold"):
         load_actions(write(tmp_path, text))
+
+
+def test_duration_is_a_whole_number_of_loops():
+    c = Chooser(ACTIONS, random.Random(5))
+    walk = ACTIONS["walk"]
+    loop = len(walk.frames) * walk.frame_ms / 1000
+    for _ in range(200):
+        loops = c.duration("walk") / loop
+        assert loops >= 1 and abs(loops - round(loops)) < 1e-9
+
+
+def test_intro_flag_defaults_off_and_reads_true(tmp_path):
+    assert not ACTIONS["walk"].intro
+    actions = load_actions(write(tmp_path, GOOD + "intro = true\n"))
+    assert actions["a"].intro

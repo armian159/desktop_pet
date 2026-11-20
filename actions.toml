@@ -7,6 +7,8 @@
 #   weight / idle_weight   평소 / 60초 이상 건드리지 않았을 때 뽑힐 가중치
 #   next      이 동작 다음에 올 수 있는 동작
 #   offset    그림을 몸 상자에서 옮겨 그리는 양 [dx, dy] (왼쪽을 볼 때 기준)
+#   intro     (선택) true면 다음 동작으로 넘어가는 전환 동작. 갈 방향을 여기서 정하고 다음 동작은 방향을 바꾸지 않는다
+# 동작 길이는 frames 한 바퀴의 정수배로 맞춰진다. 한 번만 재생할 전환 동작은 duration을 한 바퀴보다 짧게 적는다.
 
 [action.stand]
 surface = "floor"

@@ -1,9 +1,14 @@
-"""Generate the looping animation clips for the pet, one after another.
+"""Generate the animation clips for the pet, one after another.
 
     python vid_set.py            # every clip that has no frames yet
     python vid_set.py sit sleep  # only these (overwrites nothing: bump --seed for a retry)
 
-Frames land in ComfyUI/output as wan_<clip>_#####_.png.
+Frames land in ComfyUI/output as <clip>_#####_.png.
+
+The floor clips all grow from ONE standing image. A move between two poses (stand -> sit) is
+generated first, and one of its frames becomes the start and end of the loop that follows
+(sitting). That keeps the head and body the same size in every clip, which separately
+generated start images never do, and gives the pet the moves between poses for free.
 """
 import argparse
 import shutil
@@ -14,19 +19,31 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 COMFY = HERE.parent / "ComfyUI_windows_portable" / "ComfyUI"
 VID = HERE.parent / "vid.py"
+SAME = ", her big head keeps exactly the same size"
 
-# clip -> (start image in output/, what happens)
+# clip -> (start: an image in output/, or (clip, frame) to continue from that clip; loops?; what happens)
+# Order matters: a clip must come after the one it continues from.
 CLIPS = {
-    "idle": ("set_stand_s100", "A chibi girl stands still facing the viewer, breathing gently, her body bobs up and down slightly, she blinks, her long hair sways a little"),
-    "talk": ("set_stand_s100", "A chibi girl stands facing the viewer and talks, her mouth opens and closes again and again, she nods slightly while speaking"),
-    "think": ("set_think_s101", "A chibi girl stands thinking with her hand on her chin, she tilts her head slowly from side to side, eyes looking up"),
-    "sit": ("set_sit_s100", "A chibi girl sits on the ground with legs spread, breathing gently, she sways slightly from side to side and blinks"),
-    "sleep": ("set_lie_s100", "A chibi girl sleeps lying on her stomach, eyes closed, her body rises and falls slowly with each breath"),
-    "creep": ("set_creep_s100", "A chibi girl crawls on her stomach, her arms reach forward and pull one after the other, her body wiggles"),
-    "resist": ("set_resist_s101", "A chibi girl struggles in midair, flailing her arms and kicking her legs quickly, eyes shut tight"),
-    "fall": ("set_fall_s101", "A chibi girl falls through the air, her arms wave, her hair and clothes flutter upward in the wind"),
-    "climb": ("set_ceiling2_s201", "A chibi girl climbs straight upward, her raised arms reach up one after the other, her legs kick alternately"),
-    "ceiling": ("set_ceiling2_s200", "A chibi girl hangs from above by her raised hands, her legs dangle and swing gently from side to side"),
+    # floor: everything continues from the standing image
+    "wan_idle": ("set_stand_s100", True, "A chibi girl stands still facing the viewer, breathing gently, her body bobs up and down slightly, she blinks, her long hair sways a little"),
+    "wan_talk": ("set_stand_s100", True, "A chibi girl stands facing the viewer and talks, her mouth opens and closes again and again, she nods slightly while speaking"),
+    "u_look": ("set_stand_s100", True, "A chibi girl standing facing the viewer tilts her head back and looks up at the sky with curious eyes, then lowers her head again"),
+    "u_land": ("set_stand_s100", True, "A chibi girl standing facing the viewer quickly crouches down low bending her knees deeply, then stands back up straight"),
+    "u_towalk": ("set_stand_s100", False, "A chibi girl standing facing the viewer turns her whole body to face the left side of the screen, then walks in place in side view, her legs step alternately and her arms swing, her big head and small body keep exactly the same size and proportions"),
+    "u_walk": (("u_towalk", 17), True, "A chibi girl seen from the side walks in place toward the left with big lively steps, her knees lift high and her legs stride wide alternately, her arms swing back and forth, her long hair bounces" + SAME),
+    "u_tothink": ("set_stand_s100", False, "A chibi girl standing facing the viewer raises one hand to her chin and tilts her head in thought, eyes looking up, then holds the thinking pose still"),
+    "u_think": (("u_tothink", 33), True, "A chibi girl stands thinking with her hand on her chin, she tilts her head slowly from side to side, eyes looking up, blinking"),
+    "u_tosit": ("set_stand_s100", False, "A chibi girl standing facing the viewer slowly bends her knees and sits down on the ground with her legs stretched forward toward the viewer, then stays sitting still" + SAME),
+    "u_sit": (("u_tosit", 17), True, "A chibi girl sits on the ground facing the viewer, breathing gently, she sways slightly from side to side and blinks"),
+    "u_tolie": (("u_tosit", 17), False, "A chibi girl sitting on the ground turns to the left and lies down flat on her stomach, her body stretched out sideways with her head on the left and her feet on the right, her eyes stay open" + SAME),
+    "u_creep": (("u_tolie", 33), True, "A chibi girl lying flat on her stomach crawls in place toward the left, her arms reach forward and pull one after the other, her body wiggles" + SAME),
+    "u_tosleep": (("u_tolie", 33), False, "A chibi girl lying flat on her stomach slowly closes her eyes, lowers her head onto the ground and falls asleep, then sleeps still with her eyes closed"),
+    "u_sleep": (("u_tosleep", 33), True, "A chibi girl sleeps lying flat on her stomach with her eyes closed, her body rises and falls slowly with each breath"),
+    # in the air and on walls: each from its own image (build.py sizes them to match)
+    "wan_resist": ("set_resist_s101", True, "A chibi girl struggles in midair, flailing her arms and kicking her legs quickly, eyes shut tight"),
+    "wan_fall": ("set_fall_s101", True, "A chibi girl falls through the air, her arms wave, her hair and clothes flutter upward in the wind"),
+    "wan_climb": ("set_ceiling2_s201", True, "A chibi girl climbs straight upward, her raised arms reach up one after the other, her legs kick alternately"),
+    "wan_ceiling": ("set_ceiling2_s200", True, "A chibi girl hangs from above by her raised hands, her legs dangle and swing gently from side to side"),
 }
 
 
@@ -36,12 +53,14 @@ def main():
     p.add_argument("--seed", type=int, default=1)
     a = p.parse_args()
     for clip in a.clips or CLIPS:
-        if not a.clips and (COMFY / "output" / f"wan_{clip}_00001_.png").exists():
+        if not a.clips and (COMFY / "output" / f"{clip}_00001_.png").exists():
             continue
-        image, prompt = CLIPS[clip]
-        shutil.copy(COMFY / "output" / f"{image}_00001_.png", COMFY / "input" / f"{clip}_start.png")
+        start, loop, prompt = CLIPS[clip]
+        source = f"{start}_00001_.png" if isinstance(start, str) else f"{start[0]}_{start[1]:05d}_.png"
+        shutil.copy(COMFY / "output" / source, COMFY / "input" / f"{clip}_start.png")
         print(clip, flush=True)
-        subprocess.run([sys.executable, str(VID), f"{clip}_start.png", prompt, "--name", f"wan_{clip}", "--seed", str(a.seed), "--loop"], check=True)
+        command = [sys.executable, str(VID), f"{clip}_start.png", prompt, "--name", clip, "--seed", str(a.seed)]
+        subprocess.run(command + (["--loop"] if loop else []), check=True)
 
 
 if __name__ == "__main__":
