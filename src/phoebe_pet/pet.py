@@ -76,6 +76,7 @@ class Pet:
         clamp(self._body, bounds)
         self.mode = Mode.AUTO
         self.action = "stand"
+        self.last_action = "stand"  # the action before the current one; repeats of one action don't count
         self.idle_seconds = 0.0
         self._facing_right = rng.random() < 0.5
         self._paused = False
@@ -237,6 +238,8 @@ class Pet:
 
     def _start(self, name: str) -> None:
         led_in = self._actions[self.action].intro
+        if name != self.action:
+            self.last_action = self.action
         self.action = name
         self._elapsed = 0.0
         if name == "wake_up":

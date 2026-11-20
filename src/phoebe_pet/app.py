@@ -72,6 +72,7 @@ class PetApp(QObject):
         self._gestures = {key: name for key, name in (gestures or {}).items() if name in names}
         self._wait_key: str | None = None  # a line with a gesture waiting for the pet to stand
         self._waited = 0.0
+        self._panel_wait = False  # the waiting line came from the developer panel's button
         self.cfg = cfg
         self.pet = pet
         self.window = window
@@ -236,16 +237,20 @@ class PetApp(QObject):
         speaker.tick(seconds, pet.mood.name)
         if self._speech_live is not None:
             return  # a line is on its way; its event must stay pending for spoke()
+        if self._panel_wait:
+            self._tick_panel_wait()
+            return
         key = speaker.due()
-        if key is not None and not self.can_speak():
+        if self._wait_key in MOODS and key in MOODS:
+            key = self._wait_key  # a mood line keeps the mood it started waiting with
+        # A line already waiting rides out a fall (she let go of a wall); anything else drops it.
+        if key is not None and not self.can_speak(airborne=key == self._wait_key):
             speaker.drop_pending()  # an event line said later would be stale
             key = None
         if key is None:
             self._wait_key = None
             pet.hold_stand = pet.hold_stand and pet.speaking  # kept only while a gesture line shows
             return
-        if self._wait_key in MOODS and key in MOODS:
-            key = self._wait_key  # a mood line keeps the mood it started waiting with
         if key in self._gestures and not pet.standing:
             self._wait(key, seconds)
         else:
@@ -268,28 +273,49 @@ class PetApp(QObject):
 
     def _release_hold(self) -> None:
         self._wait_key = None
+        self._panel_wait = False
         self.pet.hold_stand = False
 
-    def can_speak(self) -> bool:
-        return self.cfg.monologue and self._free_to_speak()
+    def can_speak(self, airborne: bool = False) -> bool:
+        return self.cfg.monologue and self._free_to_speak(airborne)
 
-    def _free_to_speak(self) -> bool:
-        return self._speech_live is None and self._quiet_moment()
+    def _free_to_speak(self, airborne: bool = False) -> bool:
+        return self._speech_live is None and self._quiet_moment(airborne)
 
     def _speak_from_panel(self) -> None:
-        """The developer panel's button: speak even with monologues off, but never at a bad moment."""
-        if self._free_to_speak():
-            self.speak(self.pet.mood.name)
+        """The developer panel's button: speak even with monologues off, but never at a bad moment.
 
-    def _quiet_moment(self) -> bool:
-        """Nothing is going on that a spontaneous line would get in the way of."""
+        A line with a gesture waits for the pet to stand, like an automatic one.
+        """
+        if not self._free_to_speak():
+            return
+        key = self.pet.mood.name
+        if key in self._gestures and not self.pet.standing:
+            self._wait_key, self._panel_wait = key, True
+            self.pet.hold_stand = True
+        else:
+            self.speak(key)
+
+    def _tick_panel_wait(self) -> None:
+        """The panel's line waits for standing on its own, whether monologues are on or not."""
+        if not self._free_to_speak(airborne=True):
+            self._release_hold()  # dragged, hidden or talked to: forget it
+        elif self.pet.standing:
+            self.speak(self._wait_key)
+
+    def _quiet_moment(self, airborne: bool = False) -> bool:
+        """Nothing is going on that a spontaneous line would get in the way of.
+
+        `airborne`: falling or landing (not dragged) also counts, for a line already waiting.
+        """
+        mode = self.pet.mode
         return (
             self._phase == IDLE
             and not self.session.busy
             and self.window.isVisible()
             and not self.input.isVisible()
             and not self.bubble.isVisible()
-            and self.pet.mode is Mode.AUTO
+            and (mode is Mode.AUTO or (airborne and mode is Mode.AIR))
         )
 
     def speak(self, key: str) -> None:
@@ -297,6 +323,7 @@ class PetApp(QObject):
         self._abandon_speech()
         self._speech_key = key
         self._wait_key = None
+        self._panel_wait = False
         self.pet.hold_stand = key in self._gestures  # stay standing while the line is on its way
         if self.speech_worker is not None and self.speech_worker.isRunning():
             # An abandoned request cannot be cut short; never stack another on top.
@@ -368,8 +395,9 @@ class PetApp(QObject):
             return
         self.bubble.show_notice(line)
         gesture = self._gestures.get(self._speech_key)
-        if gesture is not None:
-            self.pet.play(gesture)  # only if standing; otherwise just the words
+        if gesture is not None and self.pet.last_action != gesture:
+            # Only if standing; otherwise just the words. Never the same gesture twice in a row.
+            self.pet.play(gesture)
         self.pet.speaking = True
         self.session.add_monologue(line)
         self.speaker.spoke(line)

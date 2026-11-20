@@ -484,3 +484,55 @@ def test_without_gesture_action_speaks_at_once(qapp, pet, win, session):
     pet.force("sit"); pet.mood.forced = "sleepy"; state.life_tick(120)
     assert state.speech_worker is not None and not pet.hold_stand
     state.shutdown()
+
+
+def test_waiting_line_survives_a_fall(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("wall_hold"); pet._events.append("thrown")
+    app_gestures.life_tick(1); app_gestures.life_tick(5)
+    assert app_gestures.waiting_key == "thrown"
+    pet._drop()  # lets go of the wall: in the air for a moment
+    app_gestures.life_tick(1)
+    assert app_gestures.waiting_key == "thrown" and pet.hold_stand
+    pet.force("stand"); app_gestures.life_tick(1)
+    assert app_gestures._speech_key == "thrown" and app_gestures.speech_worker is not None
+
+
+def test_fall_still_counts_toward_the_wait_limit(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("wall_hold"); pet._events.append("thrown")
+    app_gestures.life_tick(1); app_gestures.life_tick(5)
+    pet._drop(); app_gestures.life_tick(61)
+    assert app_gestures.waiting_key is None and app_gestures.speaker.due() != "thrown"
+
+
+def test_panel_line_waits_for_standing_then_plays_gesture(qapp, gesture_pet, gwin, session):
+    state = make_live(gesture_pet, gwin, session, False, GESTURES)  # works with monologues off too
+    pet = gesture_pet
+    pet.mood.forced = "sleepy"; pet.force("sit")
+    state._speak_from_panel()
+    assert state.speech_worker is None and state.waiting_key == "sleepy" and pet.hold_stand
+    state.life_tick(1); assert state.waiting_key == "sleepy"
+    pet.force("stand"); state.life_tick(1)
+    state.speech_worker.done.emit("하암.")
+    assert pet.action == "gesture_sleepy" and pet.speaking
+    state.shutdown()
+
+
+def test_panel_wait_is_dropped_when_grabbed(qapp, gesture_pet, gwin, session):
+    state = make_live(gesture_pet, gwin, session, False, GESTURES)
+    pet = gesture_pet
+    pet.mood.forced = "sleepy"; pet.force("sit"); state._speak_from_panel()
+    pet.grab((500, 300)); state.life_tick(1)
+    assert state.waiting_key is None and not pet.hold_stand
+    state.shutdown()
+
+
+def test_line_after_its_own_silent_gesture_does_not_repeat_it(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("gesture_sleepy")
+    while pet.action == "gesture_sleepy":
+        pet.tick(0.016, (9000, 9000))  # the silent gesture plays out and she stands again
+    assert pet.action == "stand"
+    app_gestures.speak("sleepy"); app_gestures.speech_worker.done.emit("하암.")
+    assert pet.action == "stand" and pet.speaking and app_gestures.bubble.isVisible()
