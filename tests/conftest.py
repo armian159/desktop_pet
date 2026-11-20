@@ -12,3 +12,39 @@ def qapp():
     app = QApplication.instance() or QApplication([])
     app.setQuitOnLastWindowClosed(False)
     return app
+
+
+import random
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture
+def pet():
+    from phoebe_pet.behavior import Chooser, load_actions
+    from phoebe_pet.pet import Pet
+    from phoebe_pet.physics import Bounds
+
+    actions = load_actions(ROOT / "actions.toml")
+    rng = random.Random(0)
+    return Pet(actions, Chooser(actions, rng), Bounds(0, 0, 1920, 1040), (128, 128), rng)
+
+
+@pytest.fixture
+def sprites(qapp):
+    from phoebe_pet.sprites import SpriteSet
+
+    return SpriteSet(ROOT / "assets" / "placeholder", 1.0)
+
+
+@pytest.fixture
+def win(qapp, pet, sprites):
+    from phoebe_pet.pet_window import PetWindow
+
+    window = PetWindow(pet, sprites)
+    window.show()
+    window.step()
+    yield window
+    window.timer.stop()
+    window.close()
