@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import random
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QPoint, QTimer, Slot
@@ -17,16 +19,16 @@ from .chat import ChatSession, ChatWorker
 from .config import Config, load_config
 from .dev_panel import DevPanel
 from .frames import SpriteError
+from .personality import Personality, load_personality, personality_file
 from .pet import Mode, Pet
 from .pet_window import PetWindow
 from .physics import Bounds
+from .speech import Speaker
 from .sprites import SpriteSet
 
 ROOT = Path(__file__).resolve().parents[2]
 MSG_WAITING = "잠깐만요, 생각을 정리하고 있어요..."
 MSG_NO_REPLY = "음... 뭐라고 해야 할지 모르겠어요."
-MONOLOGUE_PROMPT = "(방랑자님이 한동안 말이 없다. 페비가 혼잣말처럼 한 문장만 가볍게 말을 건다.)"
-MONOLOGUE_GAP = (15 * 60, 40 * 60)  # s of quiet before speaking up, picked anew each time
 POLL_MS = 1000
 
 # Where one chat turn stands.
@@ -56,6 +58,9 @@ class PetApp(QObject):
         input: InputWindow,
         session: ChatSession,
         worker_factory=ChatWorker,
+        speaker: Speaker | None = None,
+        clock=time.monotonic,
+        now=datetime.now,
     ) -> None:
         super().__init__()
         self.cfg = cfg
@@ -66,12 +71,21 @@ class PetApp(QObject):
         self.session = session
         self.worker = None
         self.wait_notice_ms = 8000
-        self.monologue_after = random.uniform(*MONOLOGUE_GAP)
+        self.speaker = speaker or Speaker(
+            Personality({}, {}).lines, random.Random(), cfg.monologue_minutes, now()
+        )
+        self.speech_worker = None
+        self.first_ms = 6000  # no first token by then: say a stock line instead
+        self.total_ms = 15000  # no full reply by then: same
         self._worker_factory = worker_factory
+        self._clock = clock
+        self._now = now
+        self._last_poll = clock()
+        self._user_talked = clock()  # when the user last talked to the pet
         self._phase = IDLE
-        self._monologue = False
-        self._quiet = 0.0
-        self._last_idle: float | None = None
+        self._speech_count = 0
+        self._speech_live: int | None = None  # the request whose reply is still wanted
+        self._speech_key = ""
         self._user_hidden = False
         self._fullscreen_hidden = False
         self._tray: QSystemTrayIcon | None = None
@@ -80,6 +94,12 @@ class PetApp(QObject):
         self._wait_timer = QTimer(self)
         self._wait_timer.setSingleShot(True)
         self._wait_timer.timeout.connect(self._on_slow)
+        self._first_timer = QTimer(self)
+        self._first_timer.setSingleShot(True)
+        self._first_timer.timeout.connect(self._on_speech_timeout)
+        self._total_timer = QTimer(self)
+        self._total_timer.setSingleShot(True)
+        self._total_timer.timeout.connect(self._on_speech_timeout)
         self._poll_timer = QTimer(self)
         self._poll_timer.timeout.connect(self.poll)
         self.menu = self._build_menu()
@@ -105,7 +125,11 @@ class PetApp(QObject):
     @Slot()
     def open_dev_panel(self) -> None:
         if self.dev_panel is None:
-            self.dev_panel = DevPanel(self.pet)
+            self.dev_panel = DevPanel(
+                self.pet,
+                speak_now=self._speak_from_panel,
+                next_speech=lambda: self.speaker.seconds_until_due(self.pet.mood.name),
+            )
         self.dev_panel.show()
         self.dev_panel.raise_()
 
@@ -141,6 +165,10 @@ class PetApp(QObject):
         visible = not (self._user_hidden or self._fullscreen_hidden)
         if visible == self.window.isVisible():
             return
+        if not visible and self.pet.speaking:
+            # A monologue is not worth bringing back later; drop it.
+            self.bubble.start()
+            self.pet.speaking = False
         # A chat may be in flight; the bubble keeps collecting it out of sight
         # and shows it when the pet comes back.
         self.bubble.suppress(not visible)
@@ -172,34 +200,159 @@ class PetApp(QObject):
     def poll(self) -> None:
         self._fullscreen_hidden = fullscreen.foreground_is_fullscreen()
         self._apply_visibility()
-        self.idle_tick(POLL_MS / 1000)
+        clock = self._clock()
+        seconds, self._last_poll = clock - self._last_poll, clock
+        self.life_tick(seconds)
 
     # ---- speaking up on its own ------------------------------------------------
 
-    def idle_tick(self, seconds: float) -> None:
-        """Count quiet time; any interaction with the pet starts the count over."""
-        idle = self.pet.idle_seconds
-        if self._last_idle is not None and idle < self._last_idle:
-            self._quiet = 0.0
-        self._last_idle = idle
-        self._quiet += seconds
-        if not self.cfg.monologue or self._quiet < self.monologue_after:
+    def life_tick(self, seconds: float) -> None:
+        """Let mood drift, collect what just happened, and speak up when a line is due."""
+        pet, speaker = self.pet, self.speaker
+        now = self._now()
+        if self.window.isVisible():
+            pet.mood.tick(seconds, pet.action, now, pet.mouse_near)
+        else:
+            # Out of sight the pet is frozen; count it as awake with nobody around.
+            pet.mood.tick(seconds, "stand", now, False)
+        clock = self._clock()
+        events = pet.take_events()
+        slot = speaker.clock_event(now)
+        if slot is not None:
+            events.append(slot)
+        for event in events:
+            speaker.note_event(event, clock)
+        speaker.tick(seconds, pet.mood.name)
+        if self._speech_live is not None:
+            return  # a line is on its way; its event must stay pending for spoke()
+        key = speaker.due()
+        if key is None:
             return
-        if self._phase != IDLE or self.session.busy or not self.window.isVisible():
+        if self.can_speak():
+            self.speak(key)
+        else:
+            speaker.drop_pending()  # an event line said later would be stale
+
+    def can_speak(self) -> bool:
+        return self.cfg.monologue and self._free_to_speak()
+
+    def _free_to_speak(self) -> bool:
+        return self._speech_live is None and self._quiet_moment()
+
+    def _speak_from_panel(self) -> None:
+        """The developer panel's button: speak even with monologues off, but never at a bad moment."""
+        if self._free_to_speak():
+            self.speak(self.pet.mood.name)
+
+    def _quiet_moment(self) -> bool:
+        """Nothing is going on that a spontaneous line would get in the way of."""
+        return (
+            self._phase == IDLE
+            and not self.session.busy
+            and self.window.isVisible()
+            and not self.input.isVisible()
+            and not self.bubble.isVisible()
+            and self.pet.mode is Mode.AUTO
+        )
+
+    def speak(self, key: str) -> None:
+        """Ask the model for one line about `key`; a stock line if it is slow or fails."""
+        self._abandon_speech()
+        self._speech_key = key
+        if self.speech_worker is not None and self.speech_worker.isRunning():
+            # An abandoned request cannot be cut short; never stack another on top.
+            self._speak_fallback()
             return
-        if self.pet.mode not in (Mode.AUTO, Mode.PAUSED):
+        pet = self.pet
+        situation = self.speaker.situation(
+            key, pet.mood.name, pet.action, self._now(), self._clock() - self._user_talked
+        )
+        self._speech_count += 1
+        rid = self._speech_live = self._speech_count
+        worker = self._worker_factory(
+            self.cfg.ollama_url,
+            self.session.payload([{"role": "user", "content": situation}]),
+            self.cfg.model,
+        )
+        worker.delta.connect(lambda _text, rid=rid: self._on_speech_delta(rid))
+        worker.done.connect(lambda reply, rid=rid: self._on_speech_done(rid, reply))
+        worker.failed.connect(lambda _message, rid=rid: self._on_speech_failed(rid))
+        self.speech_worker = worker
+        worker.start()
+        self._first_timer.start(self.first_ms)
+        self._total_timer.start(self.total_ms)
+
+    def _abandon_speech(self) -> None:
+        """Forget the request in flight; whatever it sends back later is ignored."""
+        if self._speech_live is not None and self.speech_worker is not None:
+            self.speech_worker.requestInterruption()  # cooperative; never waited on
+        self._speech_live = None
+        self._first_timer.stop()
+        self._total_timer.stop()
+
+    def _on_speech_delta(self, rid: int) -> None:
+        if rid == self._speech_live:
+            self._first_timer.stop()
+
+    def _on_speech_done(self, rid: int, reply: str) -> None:
+        if rid != self._speech_live:
             return
-        self._quiet = 0.0
-        self.monologue_after = random.uniform(*MONOLOGUE_GAP)
-        self._monologue = True
-        self.bubble.start()
-        self._request(self.session.payload([{"role": "user", "content": MONOLOGUE_PROMPT}]))
+        self._abandon_speech()
+        line = self.speaker.clean(reply)
+        if line is None:
+            self._speak_fallback()
+        else:
+            self._show_speech(line)
+
+    def _on_speech_failed(self, rid: int) -> None:
+        if rid == self._speech_live:
+            self._abandon_speech()
+            self._speak_fallback()  # nobody asked; no error notice
+
+    @Slot()
+    def _on_speech_timeout(self) -> None:
+        if self._speech_live is not None:
+            self._abandon_speech()
+            self._speak_fallback()
+
+    def _speak_fallback(self) -> None:
+        speaker = self.speaker
+        line = speaker.fallback(self._speech_key) or speaker.fallback(self.pet.mood.name)
+        if line is None:
+            self._skip_speech()
+        else:
+            self._show_speech(line)
+
+    def _show_speech(self, line: str) -> None:
+        if not self._quiet_moment():
+            self._skip_speech()  # things changed while waiting; say nothing
+            return
+        self.bubble.show_notice(line)
+        self.pet.speaking = True
+        self.session.add_monologue(line)
+        self.speaker.spoke(line)
+
+    def _skip_speech(self) -> None:
+        """Give up this turn: start the gap over rather than asking again at once."""
+        self.speaker.drop_pending()
+        self.speaker.reset_quiet()
 
     # ---- chat -----------------------------------------------------------------
+
+    def _stop_speaking(self) -> None:
+        """The user turns to the pet: drop any spontaneous line, waiting or shown."""
+        self._abandon_speech()
+        if self.pet.speaking:
+            self.bubble.start()
+            self.pet.speaking = False
+        self.pet.mood.on_interact()
+        self.speaker.reset_quiet()
+        self._user_talked = self._clock()
 
     @Slot()
     def open_input(self) -> None:
         self.pet.touch()
+        self._stop_speaking()
         self.input.open_at(self.window.geometry())
 
     @Slot(str)
@@ -209,7 +362,7 @@ class PetApp(QObject):
         payload = self.session.begin(text)
         if payload is None:
             return
-        self._monologue = False
+        self._stop_speaking()
         self.bubble.start()
         self.pet.begin_think()
         self._request(payload)
@@ -221,8 +374,7 @@ class PetApp(QObject):
         self.worker.done.connect(self._on_done)
         self.worker.failed.connect(self._on_failed)
         self.worker.start()
-        if not self._monologue:
-            self._wait_timer.start(self.wait_notice_ms)
+        self._wait_timer.start(self.wait_notice_ms)
 
     @Slot()
     def _on_slow(self) -> None:
@@ -242,14 +394,10 @@ class PetApp(QObject):
     @Slot(str)
     def _on_done(self, reply: str) -> None:
         self._wait_timer.stop()
-        if self._monologue:
-            self.session.add_assistant(reply)
-        else:
-            self.session.succeed(reply)
+        self.session.succeed(reply)
+        self.pet.mood.on_chat_done()
+        self._user_talked = self._clock()
         if self._phase == WAITING:
-            if self._monologue:
-                self._phase = IDLE
-                return
             self.bubble.show_notice(MSG_NO_REPLY)
         else:
             self.bubble.finish()
@@ -259,25 +407,28 @@ class PetApp(QObject):
     def _on_failed(self, message: str) -> None:
         self._wait_timer.stop()
         self._phase = IDLE
+        self._user_talked = self._clock()
         self.pet.end_chat()
-        if self._monologue:
-            return  # nobody asked; fail quietly
         self.session.fail()
         self.bubble.show_notice(message)
 
     @Slot()
     def _on_bubble_closed(self) -> None:
+        self.pet.speaking = False
         if self._phase == SHOWING:
             self._phase = IDLE
             self.pet.end_chat()
+            self.speaker.reset_quiet()  # the gap runs from when the user is done reading
 
     def shutdown(self) -> None:
         self._wait_timer.stop()
+        self._abandon_speech()
         self._poll_timer.stop()
         self.window.timer.stop()
-        if self.worker is not None and self.worker.isRunning():
-            self.worker.requestInterruption()
-            self.worker.wait(2000)
+        for worker in (self.worker, self.speech_worker):
+            if worker is not None and worker.isRunning():
+                worker.requestInterruption()
+                worker.wait(2000)
         if self._tray is not None:
             self._tray.hide()
         if self.dev_panel is not None:
@@ -295,15 +446,20 @@ def main() -> int:
         actions = load_actions(actions_file(ROOT, cfg.character))
         check_complete(actions)
         sprites = SpriteSet(ROOT / "assets" / cfg.character, cfg.scale)
+        personality = load_personality(personality_file(ROOT, cfg.character))
     except (ValueError, OSError, SpriteError) as error:
         QMessageBox.critical(None, "페비", f"시작할 수 없어요.\n\n{error}")
         return 1
     screen = app.primaryScreen()
     rng = random.Random()
     size = (sprites.size.width(), sprites.size.height())
-    pet = Pet(actions, Chooser(actions, rng), bounds_of(screen), size, rng, cfg.speed)
+    chooser = Chooser(actions, rng, personality.affinity)
+    pet = Pet(actions, chooser, bounds_of(screen), size, rng, cfg.speed)
     window = PetWindow(pet, sprites)
-    pet_app = PetApp(cfg, pet, window, BubbleWindow(), InputWindow(), ChatSession(cfg))
+    speaker = Speaker(personality.lines, rng, cfg.monologue_minutes, datetime.now())
+    pet_app = PetApp(
+        cfg, pet, window, BubbleWindow(), InputWindow(), ChatSession(cfg), speaker=speaker
+    )
     pet_app.follow_screen(screen)
     app.primaryScreenChanged.connect(pet_app.follow_screen)
     app.aboutToQuit.connect(pet_app.shutdown)

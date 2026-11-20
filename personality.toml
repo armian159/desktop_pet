@@ -1,0 +1,156 @@
+# 기분에 따른 성격. 기분 이름: sleepy(졸림) sulky(시무룩) bored(심심) happy(기분 좋음) calm(차분)
+#
+# [affinity.<동작>]  기분별로 그 동작이 뽑힐 가중치에 곱할 배수. 1이면 그대로,
+#                    1보다 크면 더 자주, 1보다 작으면 덜 자주, 0이면 아예 안 뽑는다.
+#                    적지 않은 기분은 1로 본다. 음수는 쓸 수 없다.
+# [lines]            말풍선 대신 쓰는 짧은 혼잣말. 기분 이름과 상황 이름(thrown woke
+#                    released lunch evening late_night)별로 여러 줄을 적어 둔다.
+
+[affinity.lie]
+sleepy = 4.0
+sulky = 1.5
+happy = 0.5
+
+[affinity.doze_off]
+sleepy = 4.0
+bored = 1.2
+happy = 0.3
+
+[affinity.lie_down]
+sleepy = 3.0
+sulky = 1.5
+happy = 0.5
+
+[affinity.sit]
+sleepy = 2.0
+sulky = 2.0
+calm = 1.5
+happy = 0.8
+
+[affinity.sit_down]
+sleepy = 2.0
+sulky = 2.0
+calm = 1.3
+
+[affinity.sit_dangle]
+sleepy = 1.2
+sulky = 2.5
+calm = 1.5
+happy = 0.8
+
+[affinity.run]
+sleepy = 0.1
+sulky = 0.5
+bored = 2.0
+happy = 2.5
+
+[affinity.to_run]
+sleepy = 0.1
+sulky = 0.5
+bored = 2.0
+happy = 2.5
+
+[affinity.walk]
+sleepy = 0.4
+sulky = 0.7
+bored = 1.5
+happy = 1.8
+
+[affinity.to_walk]
+sleepy = 0.4
+sulky = 0.7
+bored = 1.5
+happy = 1.8
+
+[affinity.creep]
+sleepy = 0.6
+sulky = 2.0
+bored = 1.2
+happy = 0.6
+
+[affinity.look_up]
+sleepy = 0.5
+bored = 1.8
+happy = 1.5
+calm = 1.3
+
+[affinity.wall_climb]
+sleepy = 0.1
+sulky = 0.4
+bored = 2.0
+happy = 2.0
+
+[affinity.ceiling_move]
+sleepy = 0.1
+sulky = 0.4
+bored = 1.8
+happy = 2.0
+
+[lines]
+sleepy = [
+  "하암... 눈이 자꾸 감겨요.",
+  "잠깐만 눈을 붙여도 될까요?",
+  "머리가 무거워요. 졸려요.",
+  "수호신의 가호가 쉬는 시간에도 함께해요.",
+]
+sulky = [
+  "...저는 괜찮아요.",
+  "조금만 혼자 있고 싶어요.",
+  "별일 아니에요. 정말이에요.",
+  "마음이 조금 가라앉아요.",
+]
+bored = [
+  "심심해요. 뭐 할 만한 게 없을까요?",
+  "구름 세는 것도 이제 다 했어요.",
+  "방랑자님, 저랑 놀아 주실래요?",
+  "가만히 있으니 발이 간질간질해요.",
+]
+happy = [
+  "오늘은 왠지 기분이 좋아요.",
+  "콧노래가 절로 나와요.",
+  "하늘이 참 예뻐서 웃음이 나요.",
+  "좋은 일이 생길 것만 같아요.",
+  "수호신의 가호에 감사해요.",
+]
+calm = [
+  "마음이 고요해요.",
+  "바람 소리가 기분 좋게 들려요.",
+  "이렇게 가만히 있는 것도 좋네요.",
+  "오늘은 평온한 하루예요.",
+]
+thrown = [
+  "꺄, 깜짝 놀랐어요!",
+  "아야... 갑자기 던지시면 놀라요.",
+  "제가 날고 있어요!",
+  "어지러워요...",
+]
+woke = [
+  "으음... 벌써 아침인가요?",
+  "아, 깜빡 잠들었나 봐요.",
+  "하암... 잘 잤어요.",
+  "어라, 제가 졸았어요?",
+]
+released = [
+  "휴, 이제 내려놓으셨네요.",
+  "휴, 살았어요... 아니, 괜찮아요.",
+  "착지는 언제나 떨려요.",
+  "다시 땅이에요. 안심이에요.",
+]
+lunch = [
+  "점심 시간이에요. 식사는 하셨어요?",
+  "배가 꼬르륵해요. 밥 꼭 챙겨 드세요.",
+  "피자가 나오는 날이면 좋겠어요.",
+  "맛있게 드세요. 거르시면 안 돼요.",
+]
+evening = [
+  "해가 지고 있어요. 하루 수고하셨어요.",
+  "노을이 참 예쁘네요.",
+  "오늘 하루는 어떠셨어요?",
+  "저녁은 따뜻하게 챙겨 드세요.",
+]
+late_night = [
+  "밤이 깊었어요. 이제 쉬셔야 해요.",
+  "늦은 시간이네요. 무리하지 마세요.",
+  "아직 안 주무세요? 걱정돼요.",
+  "별이 많은 밤이에요. 푹 주무세요.",
+]

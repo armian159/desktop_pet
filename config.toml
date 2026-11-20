@@ -9,7 +9,9 @@ ollama_url = "http://localhost:11434"
 # 이동 속도 배율 (0.25 ~ 4.0)
 speed = 1.0
 # 한동안 말이 없으면 먼저 말을 거는 기능
-monologue = false
+monologue = true
+# 혼잣말 간격 (분): [최소, 최대] 사이에서 무작위로 정해짐
+monologue_minutes = [4, 10]
 # 모델에 보내는 최근 대화 턴 수
 history_turns = 12
 # 모델을 메모리에 유지하는 시간

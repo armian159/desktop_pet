@@ -161,3 +161,22 @@ def test_intro_flag_defaults_off_and_reads_true(tmp_path):
     assert not ACTIONS["walk"].intro
     actions = load_actions(write(tmp_path, GOOD + "intro = true\n"))
     assert actions["a"].intro
+
+
+def test_mood_affinity_multiplies_weight():
+    # stand -> next has walk(5) and sit(2) among others; make sit dominant when sleepy
+    rng = random.Random(1)
+    c = Chooser(ACTIONS, rng, {"sit": {"sleepy": 1000}})
+    picks = [c.choose("stand", 0, "sleepy") for _ in range(200)]
+    assert picks.count("sit") > 190
+    picks = [c.choose("stand", 0, "calm") for _ in range(200)]
+    assert picks.count("sit") < 100
+
+
+def test_affinity_for_unknown_action_is_ignored():
+    Chooser(ACTIONS, random.Random(0), {"nope": {"sleepy": 3}}).choose("stand", 0, "sleepy")
+
+
+def test_all_zero_after_affinity_falls_back_to_even():
+    c = Chooser(ACTIONS, random.Random(0), {n: {"sleepy": 0} for n in ACTIONS})
+    assert c.choose("stand", 0, "sleepy") in ACTIONS["stand"].next

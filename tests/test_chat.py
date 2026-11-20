@@ -83,11 +83,27 @@ def test_empty_reply_counts_as_failure():
     assert s.history == [] and not s.busy
 
 
-def test_add_assistant_records_unprompted_line_and_skips_blank():
+def test_only_latest_monologue_is_kept():
     s = ChatSession(CFG)
-    s.add_assistant("  ")
-    s.add_assistant("hi")
-    assert s.history == [{"role": "assistant", "content": "hi"}]
+    s.add_monologue("하나")
+    s.begin("안녕")
+    s.succeed("네")
+    s.add_monologue("둘")
+    assert [m["content"] for m in s.history] == ["안녕", "네", "둘"]
+
+
+def test_blank_monologue_is_ignored():
+    s = ChatSession(CFG)
+    s.add_monologue("  ")
+    assert s.history == []
+
+
+def test_reset_forgets_monologue():
+    s = ChatSession(CFG)
+    s.add_monologue("하나")
+    s.reset()
+    s.add_monologue("둘")
+    assert [m["content"] for m in s.history] == ["둘"]
 
 
 def test_parse_delta_and_done():
