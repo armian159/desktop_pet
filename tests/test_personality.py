@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from phoebe_pet.mood import NAMES
 from phoebe_pet.personality import LINE_KEYS, Personality, load_personality, personality_file
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,3 +63,31 @@ def test_character_folder_overrides(tmp_path):
 def test_non_finite_factor_is_an_error(tmp_path, value):
     with pytest.raises(ValueError, match="finite"):
         load_personality(write(tmp_path, f"[affinity.walk]\nhappy = {value}\n"))
+
+
+def test_repo_file_maps_gestures_for_ten_keys():
+    p = load_personality(ROOT / "personality.toml")
+    assert set(p.gestures) == set(LINE_KEYS) - {"woke"}
+    assert all(v == f"gesture_{k}" for k, v in p.gestures.items())
+
+
+def test_unknown_gesture_key_is_an_error(tmp_path):
+    with pytest.raises(ValueError, match="gestures.*'dance'"):
+        load_personality(write(tmp_path, '[gestures]\ndance = "gesture_dance"'))
+
+
+def test_gesture_value_must_be_text(tmp_path):
+    with pytest.raises(ValueError, match="gestures"):
+        load_personality(write(tmp_path, "[gestures]\nsleepy = 3"))
+
+
+def test_every_line_list_has_eight_lines():
+    p = load_personality(ROOT / "personality.toml")
+    assert all(len(p.lines[k]) == 8 for k in LINE_KEYS)
+
+
+def test_mood_gestures_only_in_their_own_mood():
+    p = load_personality(ROOT / "personality.toml")
+    for mood in NAMES:
+        factors = p.affinity[f"gesture_{mood}"]
+        assert factors[mood] > 0 and all(factors[m] == 0 for m in NAMES if m != mood)
