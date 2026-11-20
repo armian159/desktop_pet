@@ -1,0 +1,175 @@
+# 동작 정의. 프레임 번호는 Shimeji-ee 기본 actions.xml 을 따른다.
+#   surface   floor | wall | ceiling
+#   frames    차례로 보여 줄 그림 이름
+#   frame_ms  그림 한 장을 보여 주는 시간
+#   speed     면을 따라 움직이는 속도(px/초). 0이면 제자리
+#   duration  [최소, 최대] 초
+#   weight / idle_weight   평소 / 60초 이상 건드리지 않았을 때 뽑힐 가중치
+#   next      이 동작 다음에 올 수 있는 동작
+#   offset    그림을 몸 상자에서 옮겨 그리는 양 [dx, dy] (왼쪽을 볼 때 기준)
+
+[action.stand]
+surface = "floor"
+frames = ["shime1"]
+frame_ms = 500
+speed = 0
+duration = [1, 4]
+weight = 3
+idle_weight = 2
+next = ["walk", "run", "sit", "look_up", "stand"]
+
+[action.walk]
+surface = "floor"
+frames = ["shime1", "shime2", "shime1", "shime3"]
+frame_ms = 200
+speed = 60
+duration = [2, 8]
+weight = 5
+idle_weight = 2
+next = ["stand"]
+
+[action.run]
+surface = "floor"
+frames = ["shime1", "shime2", "shime1", "shime3"]
+frame_ms = 80
+speed = 180
+duration = [1, 3]
+weight = 1
+idle_weight = 0.2
+next = ["stand"]
+
+[action.look_up]
+surface = "floor"
+frames = ["shime26"]
+frame_ms = 500
+speed = 0
+duration = [1, 3]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.sit]
+surface = "floor"
+frames = ["shime11"]
+frame_ms = 500
+speed = 0
+duration = [3, 10]
+weight = 2
+idle_weight = 5
+next = ["stand", "sit_spin", "sit_dangle", "lie"]
+
+[action.sit_spin]
+surface = "floor"
+frames = ["shime26", "shime15", "shime27", "shime16", "shime28", "shime17", "shime29", "shime11"]
+frame_ms = 200
+speed = 0
+duration = [2, 4]
+weight = 1
+idle_weight = 1
+next = ["sit"]
+
+[action.sit_dangle]
+surface = "floor"
+frames = ["shime31", "shime32", "shime31", "shime33"]
+frame_ms = 400
+speed = 0
+duration = [3, 8]
+weight = 1
+idle_weight = 3
+next = ["sit"]
+offset = [0, 16]
+
+[action.lie]
+surface = "floor"
+frames = ["shime21"]
+frame_ms = 500
+speed = 0
+duration = [5, 20]
+weight = 1
+idle_weight = 6
+next = ["creep", "sit"]
+
+[action.creep]
+surface = "floor"
+frames = ["shime20", "shime21"]
+frame_ms = 600
+speed = 20
+duration = [2, 6]
+weight = 1
+idle_weight = 1
+next = ["lie"]
+
+[action.wall_hold]
+surface = "wall"
+frames = ["shime13"]
+frame_ms = 500
+speed = 0
+duration = [1, 3]
+weight = 2
+idle_weight = 2
+next = ["wall_climb", "wall_hold"]
+offset = [-64, 0]
+
+[action.wall_climb]
+surface = "wall"
+frames = ["shime14", "shime14", "shime12", "shime13", "shime13", "shime12"]
+frame_ms = 250
+speed = 50
+duration = [2, 6]
+weight = 4
+idle_weight = 2
+next = ["wall_hold"]
+offset = [-64, 0]
+
+[action.ceiling_hold]
+surface = "ceiling"
+frames = ["shime23"]
+frame_ms = 500
+speed = 0
+duration = [1, 3]
+weight = 2
+idle_weight = 2
+next = ["ceiling_move", "ceiling_hold"]
+offset = [0, -48]
+
+[action.ceiling_move]
+surface = "ceiling"
+frames = ["shime25", "shime25", "shime23", "shime24", "shime24", "shime23"]
+frame_ms = 250
+speed = 40
+duration = [2, 6]
+weight = 4
+idle_weight = 2
+next = ["ceiling_hold"]
+offset = [0, -48]
+
+# 특수 동작: 프로그램이 상황에 따라 직접 고른다.
+[special.fall]
+frames = ["shime4"]
+frame_ms = 500
+
+[special.land]
+frames = ["shime18", "shime19"]
+frame_ms = 200
+
+# 끌려갈 때: 왼쪽으로 빠르게 ... 가만히 ... 오른쪽으로 빠르게
+[special.drag]
+frames = ["shime10", "shime8", "shime1", "shime7", "shime9"]
+frame_ms = 500
+
+# 잡힌 채 가만히 있으면 버둥거린다
+[special.resist]
+frames = ["shime5", "shime6"]
+frame_ms = 200
+
+[special.think]
+frames = ["think1", "think2"]
+frame_ms = 500
+
+[special.talk]
+frames = ["talk1", "talk2"]
+frame_ms = 180
+
+[special.look_at_mouse]
+frames = ["shime26"]
+frame_ms = 500

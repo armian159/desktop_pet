@@ -1,0 +1,98 @@
+import random
+from pathlib import Path
+
+import pytest
+
+from phoebe_pet.behavior import Chooser, load_actions
+
+ROOT = Path(__file__).resolve().parent.parent
+ACTIONS = load_actions(ROOT / "actions.toml")
+
+GOOD = """
+[action.a]
+surface = "floor"
+frames = ["shime1"]
+frame_ms = 100
+speed = 0
+duration = [1, 2]
+weight = 1
+idle_weight = 1
+next = ["a"]
+"""
+
+
+def write(tmp_path, text):
+    p = tmp_path / "actions.toml"
+    p.write_text(text, encoding="utf-8")
+    return p
+
+
+def test_repo_actions_file_loads_and_has_core_actions():
+    assert {"stand", "walk", "sit", "lie", "wall_climb", "ceiling_move", "fall", "drag", "talk", "think"} <= set(ACTIONS)
+
+
+def test_resting_is_derived_from_speed():
+    assert ACTIONS["sit"].resting and not ACTIONS["walk"].resting
+
+
+def test_offset_defaults_to_zero_and_reads_override():
+    assert ACTIONS["stand"].offset == (0, 0) and ACTIONS["wall_hold"].offset == (-64, 0)
+
+
+def test_minimal_file_loads(tmp_path):
+    assert set(load_actions(write(tmp_path, GOOD))) == {"a"}
+
+
+def test_unknown_next_reference_rejected(tmp_path):
+    with pytest.raises(ValueError, match="nope"):
+        load_actions(write(tmp_path, GOOD.replace('next = ["a"]', 'next = ["nope"]')))
+
+
+def test_empty_frames_rejected(tmp_path):
+    with pytest.raises(ValueError, match="frames"):
+        load_actions(write(tmp_path, GOOD.replace('frames = ["shime1"]', "frames = []")))
+
+
+def test_empty_next_rejected(tmp_path):
+    with pytest.raises(ValueError, match="next"):
+        load_actions(write(tmp_path, GOOD.replace('next = ["a"]', "next = []")))
+
+
+def test_missing_key_names_action_and_key(tmp_path):
+    with pytest.raises(ValueError, match="a.*speed"):
+        load_actions(write(tmp_path, GOOD.replace("speed = 0\n", "")))
+
+
+def test_bad_surface_rejected(tmp_path):
+    with pytest.raises(ValueError, match="surface"):
+        load_actions(write(tmp_path, GOOD.replace('"floor"', '"moon"')))
+
+
+def test_choice_always_comes_from_next():
+    c = Chooser(ACTIONS, random.Random(1))
+    for _ in range(500):
+        assert c.choose("walk", 0) == "stand"
+    assert {c.choose("sit", 0) for _ in range(500)} == {"stand", "sit_spin", "sit_dangle", "lie"}
+
+
+def test_no_immediate_repeat_when_alternatives_exist():
+    c = Chooser(ACTIONS, random.Random(2))
+    assert "stand" not in {c.choose("stand", 0) for _ in range(500)}
+
+
+def test_repeat_allowed_when_it_is_the_only_option(tmp_path):
+    c = Chooser(load_actions(write(tmp_path, GOOD)), random.Random(0))
+    assert c.choose("a", 0) == "a"
+
+
+def test_idle_shifts_toward_resting():
+    def share(idle):
+        c = Chooser(ACTIONS, random.Random(3))
+        return sum(c.choose("stand", idle) == "sit" for _ in range(4000)) / 4000
+
+    assert share(120) > share(0) + 0.15
+
+
+def test_duration_within_range():
+    c = Chooser(ACTIONS, random.Random(4))
+    assert all(2 <= c.duration("walk") <= 8 for _ in range(200))
