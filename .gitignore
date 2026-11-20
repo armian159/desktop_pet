@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.superpowers/
+.pytest_cache/
+assets/*/
+!assets/placeholder/
