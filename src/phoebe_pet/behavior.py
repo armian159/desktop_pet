@@ -106,15 +106,24 @@ def _build(raw: dict) -> dict[str, Action]:
 
 
 class Chooser:
-    def __init__(self, actions: dict[str, Action], rng: random.Random) -> None:
+    def __init__(
+        self,
+        actions: dict[str, Action],
+        rng: random.Random,
+        affinity: dict[str, dict[str, float]] | None = None,
+    ) -> None:
         self._actions = actions
         self._rng = rng
+        self._affinity = affinity or {}
 
-    def choose(self, current: str, idle_seconds: float) -> str:
-        """Pick what follows `current`, avoiding an immediate repeat if possible."""
+    def choose(self, current: str, idle_seconds: float, mood: str = "calm") -> str:
+        """Pick what follows `current`, avoiding an immediate repeat if possible; mood scales each weight."""
         options = [n for n in self._actions[current].next if n != current] or list(self._actions[current].next)
         idle = idle_seconds >= IDLE_AFTER
-        weights = [self._actions[n].idle_weight if idle else self._actions[n].weight for n in options]
+        weights = [
+            (self._actions[n].idle_weight if idle else self._actions[n].weight) * self._affinity.get(n, {}).get(mood, 1.0)
+            for n in options
+        ]
         if not any(weights):
             weights = [1.0] * len(options)
         return self._rng.choices(options, weights)[0]
