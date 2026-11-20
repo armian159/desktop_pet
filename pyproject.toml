@@ -1,0 +1,26 @@
+[project]
+name = "phoebe-pet"
+version = "0.1.0"
+description = "Desktop pet that chats through a local Ollama model"
+authors = [
+    { name = "sjmin", email = "sjmin@markany.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "pyside6>=6.12.0",
+]
+
+[project.scripts]
+phoebe-pet = "phoebe_pet.app:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
