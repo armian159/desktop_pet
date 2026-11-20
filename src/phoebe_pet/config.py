@@ -14,7 +14,8 @@ class Config:
     model: str = "phoebe"
     ollama_url: str = "http://localhost:11434"
     speed: float = 1.0
-    monologue: bool = False
+    monologue: bool = True
+    monologue_minutes: tuple[float, float] = (4.0, 10.0)
     history_turns: int = 12
     keep_alive: str = "30m"
 
@@ -25,6 +26,13 @@ _RANGES = {"scale": (0.25, 4.0), "speed": (0.25, 4.0)}
 def _coerce(key: str, value: object, default: object) -> object:
     if isinstance(default, bool):
         ok = isinstance(value, bool)
+    elif isinstance(default, tuple):
+        ok = (
+            isinstance(value, list)
+            and len(value) == 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)
+        )
+        value = tuple(float(v) for v in value) if ok else value
     elif isinstance(default, float):
         ok = isinstance(value, (int, float)) and not isinstance(value, bool)
         value = float(value) if ok else value
@@ -53,4 +61,8 @@ def load_config(path: Path) -> Config:
             raise ValueError(f"config: '{key}' must be between {low} and {high}")
     if values.get("history_turns", 1) < 1:
         raise ValueError("config: 'history_turns' must be at least 1")
+    if "monologue_minutes" in values:
+        low, high = values["monologue_minutes"]
+        if not 0 < low <= high:
+            raise ValueError("config: 'monologue_minutes' must satisfy 0 < low <= high")
     return Config(**values)

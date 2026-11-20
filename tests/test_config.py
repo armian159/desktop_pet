@@ -44,3 +44,21 @@ def test_bool_not_accepted_as_number(tmp_path):
 def test_history_turns_must_be_positive(tmp_path):
     with pytest.raises(ValueError, match="history_turns"):
         load_config(write(tmp_path, "history_turns = 0\n"))
+
+
+def test_monologue_on_by_default():
+    assert Config().monologue is True and Config().monologue_minutes == (4.0, 10.0)
+
+
+def test_monologue_minutes_from_file(tmp_path):
+    p = tmp_path / "config.toml"
+    p.write_text("monologue_minutes = [2, 5]", encoding="utf-8")
+    assert load_config(p).monologue_minutes == (2.0, 5.0)
+
+
+@pytest.mark.parametrize("text", ["monologue_minutes = [5, 2]", "monologue_minutes = [0, 3]", "monologue_minutes = [1]", 'monologue_minutes = "4"'])
+def test_bad_monologue_minutes(tmp_path, text):
+    p = tmp_path / "config.toml"
+    p.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match="monologue_minutes"):
+        load_config(p)

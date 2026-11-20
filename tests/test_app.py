@@ -182,9 +182,13 @@ def test_right_click_pops_up_the_menu(app_state, win, menu):
     menu.hide()
 
 
-def test_monologue_off_by_default_never_fires(app_state):
-    app_state.idle_tick(seconds=3600)
-    assert app_state.worker is None
+def test_monologue_off_never_fires(qapp, pet, win, session):
+    state = PetApp(Config(monologue=False), pet, win, BubbleWindow(), InputWindow(), session, worker_factory=FakeWorker)
+    try:
+        state.idle_tick(seconds=3600)
+        assert state.worker is None
+    finally:
+        state.shutdown()
 
 
 @pytest.fixture
