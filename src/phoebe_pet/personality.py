@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,8 @@ def _affinity(table: dict) -> dict[str, dict[str, float]]:
                 raise ValueError(f"personality: '{action}' has unknown mood '{mood}'")
             if isinstance(factor, bool) or not isinstance(factor, (int, float)):
                 raise ValueError(f"personality: '{action}' factor '{mood}' is not a number")
+            if not math.isfinite(factor):
+                raise ValueError(f"personality: '{action}' factor '{mood}' is not finite")
             if factor < 0:
                 raise ValueError(f"personality: '{action}' has a negative factor for '{mood}'")
             result[action][mood] = float(factor)

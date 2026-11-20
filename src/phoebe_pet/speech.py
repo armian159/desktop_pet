@@ -40,6 +40,22 @@ _ACTION_TEXT = {
     "doze_off": "꾸벅꾸벅 졸고 있다",
     "walk": "걷고 있다",
     "run": "뛰어다니고 있다",
+    "to_walk": "걷기 시작했다",
+    "to_run": "뛰기 시작했다",
+    "from_walk": "걷다가 멈춰 섰다",
+    "sit_down": "자리에 앉는 중이다",
+    "stand_up": "일어서는 중이다",
+    "lie_down": "바닥에 눕는 중이다",
+    "get_up": "누워 있다가 일어나는 중이다",
+    "wake_up": "막 잠에서 깨어나는 중이다",
+    "creep": "엎드려 기어가고 있다",
+    "sit_dangle": "걸터앉아 다리를 흔들고 있다",
+    "sit_spin": "앉은 채로 빙글 돌고 있다",
+    "look_up": "위를 올려다보고 있다",
+    "wall_hold": "벽에 매달려 있다",
+    "wall_climb": "벽을 타고 오르고 있다",
+    "ceiling_hold": "천장에 매달려 있다",
+    "ceiling_move": "천장에 매달려 옮겨 가고 있다",
 }
 
 

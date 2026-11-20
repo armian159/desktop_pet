@@ -116,3 +116,15 @@ def test_clean_rejects_long_repeat_and_letterless(speaker):
 
 def test_situation_under_a_minute_has_no_zero_minutes(speaker):
     assert "0분째" not in speaker.situation("calm", "calm", "stand", at(9, 0), 30)
+
+
+PHOEBE_ACTIONS = (
+    "to_walk", "to_run", "from_walk", "sit_down", "stand_up", "lie_down", "get_up", "wake_up",
+    "creep", "sit_dangle", "sit_spin", "look_up", "wall_hold", "wall_climb", "ceiling_hold",
+    "ceiling_move",
+)
+
+
+@pytest.mark.parametrize("action", PHOEBE_ACTIONS)
+def test_situation_describes_the_phoebe_actions(speaker, action):
+    assert "그냥 있다" not in speaker.situation("calm", "calm", action, at(9, 0), 0)

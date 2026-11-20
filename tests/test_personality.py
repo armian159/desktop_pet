@@ -56,3 +56,9 @@ def test_character_folder_overrides(tmp_path):
     own.write_text("", encoding="utf-8")
     assert personality_file(tmp_path, "fancy") == own
     assert personality_file(tmp_path, "plain") == tmp_path / "personality.toml"
+
+
+@pytest.mark.parametrize("value", ["inf", "nan", "-inf"])
+def test_non_finite_factor_is_an_error(tmp_path, value):
+    with pytest.raises(ValueError, match="finite"):
+        load_personality(write(tmp_path, f"[affinity.walk]\nhappy = {value}\n"))
