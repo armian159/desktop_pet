@@ -124,7 +124,11 @@ class PetApp(QObject):
     @Slot()
     def open_dev_panel(self) -> None:
         if self.dev_panel is None:
-            self.dev_panel = DevPanel(self.pet)
+            self.dev_panel = DevPanel(
+                self.pet,
+                speak_now=self._speak_from_panel,
+                next_speech=lambda: self.speaker.seconds_until_due(self.pet.mood.name),
+            )
         self.dev_panel.show()
         self.dev_panel.raise_()
 
@@ -221,13 +225,20 @@ class PetApp(QObject):
             speaker.drop_pending()  # an event line said later would be stale
 
     def can_speak(self) -> bool:
+        return self.cfg.monologue and self._free_to_speak()
+
+    def _free_to_speak(self) -> bool:
         return self._speech_live is None and self._quiet_moment()
+
+    def _speak_from_panel(self) -> None:
+        """The developer panel's button: speak even with monologues off, but never at a bad moment."""
+        if self._free_to_speak():
+            self.speak(self.pet.mood.name)
 
     def _quiet_moment(self) -> bool:
         """Nothing is going on that a spontaneous line would get in the way of."""
         return (
-            self.cfg.monologue
-            and self._phase == IDLE
+            self._phase == IDLE
             and not self.session.busy
             and self.window.isVisible()
             and not self.input.isVisible()

@@ -73,3 +73,41 @@ def test_repeat_does_not_fight_a_drag(panel, pet):
     pet.grab((500, 500))
     panel.refresh()
     assert pet.mode is Mode.DRAGGED
+
+
+def test_status_shows_mood(panel, pet):
+    pet.mood.energy = 0.62
+    panel.refresh()
+    assert "기운 0.62" in panel.status.text() and "[calm]" in panel.status.text()
+
+
+def test_mood_button_cycles_forced_names(panel, pet):
+    seen = []
+    for _ in range(6):
+        panel.mood_button.click()
+        seen.append(pet.mood.forced)
+    assert seen == ["sleepy", "sulky", "bored", "happy", "calm", None]
+
+
+def test_speak_button_calls_back(qapp, pet):
+    calls = []
+    p = DevPanel(pet, speak_now=lambda: calls.append(1))
+    p.speak_button.click()
+    assert calls == [1]
+    p.timer.stop()
+    p.close()
+
+
+def test_speak_button_disabled_without_callback(panel):
+    assert not panel.speak_button.isEnabled()
+
+
+def test_status_shows_time_until_next_speech(qapp, pet):
+    p = DevPanel(pet, next_speech=lambda: 192.0)
+    assert "다음 혼잣말 3분 12초" in p.status.text()
+    p.timer.stop()
+    p.close()
+
+
+def test_status_without_next_speech_shows_dash(panel):
+    assert "다음 혼잣말 —" in panel.status.text()
