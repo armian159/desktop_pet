@@ -215,13 +215,13 @@ NOW = datetime(2026, 11, 20, 10, 0)
 LINES = {"calm": ("평온한 말",), "thrown": ("앗!",), "bored": ("심심해요",), "happy": ("좋아요",)}
 
 
-def make_live(pet, win, session, monologue):
+def make_live(pet, win, session, monologue, gestures=None):
     pet.mood = Mood(NOW)  # a calm 10 a.m. mood, whatever the real clock says
     pet.force("stand")
     speaker = Speaker(LINES, random.Random(0), (1, 1), NOW)
     return PetApp(
         Config(monologue=monologue), pet, win, BubbleWindow(), InputWindow(), session,
-        worker_factory=FakeWorker, speaker=speaker, now=lambda: NOW,
+        worker_factory=FakeWorker, speaker=speaker, now=lambda: NOW, gestures=gestures,
     )
 
 
@@ -368,3 +368,119 @@ def test_abandoned_speech_asks_the_worker_to_stop(app_live):
     app_live.speak("calm"); speech = app_live.speech_worker
     assert not speech.interrupted
     app_live.open_input(); assert speech.interrupted
+
+
+# ---- gestures -------------------------------------------------------------------
+
+GESTURES = {"sleepy": "gesture_sleepy", "thrown": "gesture_thrown"}
+
+
+@pytest.fixture
+def gwin(qapp, gesture_pet, sprites):
+    from phoebe_pet.pet_window import PetWindow
+
+    window = PetWindow(gesture_pet, sprites)
+    window.show()
+    window.step()
+    yield window
+    window.timer.stop()
+    window.close()
+
+
+@pytest.fixture
+def app_gestures(qapp, gesture_pet, gwin, session):
+    state = make_live(gesture_pet, gwin, session, True, GESTURES)
+    yield state
+    state.shutdown()
+
+
+def test_gesture_line_plays_gesture_with_bubble(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("stand"); app_gestures.speak("sleepy"); app_gestures.speech_worker.done.emit("하암, 졸려요.")
+    assert pet.action == "gesture_sleepy" and pet.speaking and app_gestures.bubble.isVisible()
+
+
+def test_fallback_line_also_plays_gesture(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("stand"); app_gestures.speak("thrown"); app_gestures.speech_worker.failed.emit("x")
+    assert app_gestures.bubble.text() == "앗!" and pet.action == "gesture_thrown"
+
+
+def test_line_in_flight_keeps_the_pet_standing(app_gestures, gesture_pet):
+    gesture_pet.force("stand"); app_gestures.speak("sleepy")
+    assert gesture_pet.hold_stand
+
+
+def test_mood_line_waits_until_standing_then_speaks_once(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.mood.forced = "sleepy"; pet.force("sit")
+    app_gestures.life_tick(120)  # gap passed, but sitting
+    assert app_gestures.speech_worker is None and pet.hold_stand and app_gestures.waiting_key == "sleepy"
+    pet.force("stand"); app_gestures.life_tick(1)
+    first = app_gestures.speech_worker; assert first is not None
+    app_gestures.life_tick(1); assert app_gestures.speech_worker is first
+
+
+def test_mood_line_keeps_the_mood_it_started_waiting_with(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.mood.forced = "sleepy"; pet.force("sit")
+    app_gestures.life_tick(120)
+    pet.mood.forced = "bored"; app_gestures.life_tick(1)
+    assert app_gestures.waiting_key == "sleepy"
+    pet.force("stand"); app_gestures.life_tick(1)
+    assert app_gestures.speech_worker is not None and app_gestures._speech_key == "sleepy"
+    app_gestures.speech_worker.done.emit("하암.")
+    assert pet.action == "gesture_sleepy"
+
+
+def test_event_wait_has_a_limit(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("sit"); pet._events.append("thrown")
+    app_gestures.life_tick(1); app_gestures.life_tick(5)
+    assert app_gestures.waiting_key == "thrown"
+    app_gestures.life_tick(61)
+    assert app_gestures.waiting_key != "thrown" and app_gestures.speaker.due() != "thrown"
+
+
+def test_dropped_event_releases_hold(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("sit"); pet._events.append("thrown"); app_gestures.life_tick(1); app_gestures.life_tick(5)
+    assert pet.hold_stand
+    pet.grab((500, 300)); app_gestures.life_tick(1)
+    assert not pet.hold_stand and app_gestures.waiting_key is None
+
+
+def test_grab_during_gesture_cleans_up(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("stand"); app_gestures.speak("sleepy"); app_gestures.speech_worker.done.emit("하암.")
+    pet.grab((500, 300)); app_gestures.open_input()
+    assert not pet.speaking and not pet.hold_stand
+
+
+def test_hold_released_when_speech_bubble_closes(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("stand"); app_gestures.speak("sleepy"); app_gestures.speech_worker.done.emit("하암.")
+    assert pet.hold_stand
+    app_gestures.bubble.close_button.click()
+    assert not pet.hold_stand
+
+
+def test_skipped_line_releases_hold(app_gestures, gesture_pet):
+    pet = gesture_pet
+    pet.force("stand"); app_gestures.speak("sleepy")
+    pet.grab((500, 300)); app_gestures.speech_worker.done.emit("하암.")  # no longer a quiet moment
+    assert not pet.hold_stand and not app_gestures.bubble.isVisible()
+
+
+def test_user_chat_reply_plays_no_gesture(app_gestures, gesture_pet):
+    gesture_pet.force("stand"); gesture_pet.mood.forced = "sleepy"
+    app_gestures.input.submitted.emit("졸려?"); app_gestures.worker.delta.emit("네")
+    app_gestures.worker.done.emit("네")
+    assert gesture_pet.action == "talk" and not gesture_pet.hold_stand
+
+
+def test_without_gesture_action_speaks_at_once(qapp, pet, win, session):
+    state = make_live(pet, win, session, True, GESTURES)  # repo actions.toml has no gesture_* actions
+    pet.force("sit"); pet.mood.forced = "sleepy"; state.life_tick(120)
+    assert state.speech_worker is not None and not pet.hold_stand
+    state.shutdown()

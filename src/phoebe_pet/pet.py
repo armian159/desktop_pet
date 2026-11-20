@@ -67,6 +67,7 @@ class Pet:
         self.mood = mood if mood is not None else Mood(datetime.now())
         self.mouse_near = False
         self.speaking = False  # shows the talk frames while standing; changes nothing else
+        self.hold_stand = False  # a line with a gesture is waiting: once standing, stay standing
         self._events: list[str] = []
         self._thrown = False
         w, h = size
@@ -115,6 +116,15 @@ class Pet:
 
     def action_names(self) -> list[str]:
         return list(self._actions)
+
+    @property
+    def standing(self) -> bool:
+        return self.mode is Mode.AUTO and self.action == "stand"
+
+    def play(self, name: str) -> None:
+        """Start action `name` now; only from standing on the floor, otherwise nothing happens."""
+        if self.standing:
+            self._start(name)
 
     def force(self, name: str) -> None:
         """Do `name` right now, wherever the pet is. For trying actions out."""
@@ -324,7 +334,7 @@ class Pet:
                     else:
                         self._facing_right = hit_left
                         # Whatever normally follows (a turn back to the front, say), not a bare cut to standing.
-                        self._start(self._chooser.choose(self.action, self.idle_seconds, self.mood.name))
+                        self._start(self._choose_next())
                     return
             elif action.surface == "wall":
                 body.y += step * self._climb_dir
@@ -347,7 +357,12 @@ class Pet:
             if action.surface != "floor" and not action.speed and self._rng.random() < LET_GO_CHANCE:
                 self._drop()
             else:
-                self._start(self._chooser.choose(self.action, self.idle_seconds, self.mood.name))
+                self._start(self._choose_next())
+
+    def _choose_next(self) -> str:
+        if self.hold_stand and self.action == "stand":
+            return "stand"
+        return self._chooser.choose(self.action, self.idle_seconds, self.mood.name)
 
     def _tick_air(self, dt: float) -> None:
         body = self._body

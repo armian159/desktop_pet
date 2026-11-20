@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import random
 import sys
 import time
@@ -19,6 +20,7 @@ from .chat import ChatSession, ChatWorker
 from .config import Config, load_config
 from .dev_panel import DevPanel
 from .frames import SpriteError
+from .mood import NAMES as MOODS
 from .personality import Personality, load_personality, personality_file
 from .pet import Mode, Pet
 from .pet_window import PetWindow
@@ -30,6 +32,8 @@ ROOT = Path(__file__).resolve().parents[2]
 MSG_WAITING = "잠깐만요, 생각을 정리하고 있어요..."
 MSG_NO_REPLY = "음... 뭐라고 해야 할지 모르겠어요."
 POLL_MS = 1000
+# Seconds a line with a gesture may wait for the pet to stand before it is dropped (mood lines wait on).
+WAIT_LIMIT = {"thrown": 60.0, "released": 60.0, "lunch": 600.0, "evening": 600.0, "late_night": 600.0}
 
 # Where one chat turn stands.
 IDLE, WAITING, STREAMING, SHOWING = "idle", "waiting", "streaming", "showing"
@@ -61,8 +65,13 @@ class PetApp(QObject):
         speaker: Speaker | None = None,
         clock=time.monotonic,
         now=datetime.now,
+        gestures: dict[str, str] | None = None,
     ) -> None:
         super().__init__()
+        names = set(pet.action_names())
+        self._gestures = {key: name for key, name in (gestures or {}).items() if name in names}
+        self._wait_key: str | None = None  # a line with a gesture waiting for the pet to stand
+        self._waited = 0.0
         self.cfg = cfg
         self.pet = pet
         self.window = window
@@ -129,6 +138,7 @@ class PetApp(QObject):
                 self.pet,
                 speak_now=self._speak_from_panel,
                 next_speech=lambda: self.speaker.seconds_until_due(self.pet.mood.name),
+                waiting=lambda: self.waiting_key,
             )
         self.dev_panel.show()
         self.dev_panel.raise_()
@@ -169,6 +179,7 @@ class PetApp(QObject):
             # A monologue is not worth bringing back later; drop it.
             self.bubble.start()
             self.pet.speaking = False
+            self._release_hold()
         # A chat may be in flight; the bubble keeps collecting it out of sight
         # and shows it when the pet comes back.
         self.bubble.suppress(not visible)
@@ -226,12 +237,38 @@ class PetApp(QObject):
         if self._speech_live is not None:
             return  # a line is on its way; its event must stay pending for spoke()
         key = speaker.due()
-        if key is None:
-            return
-        if self.can_speak():
-            self.speak(key)
-        else:
+        if key is not None and not self.can_speak():
             speaker.drop_pending()  # an event line said later would be stale
+            key = None
+        if key is None:
+            self._wait_key = None
+            pet.hold_stand = pet.hold_stand and pet.speaking  # kept only while a gesture line shows
+            return
+        if self._wait_key in MOODS and key in MOODS:
+            key = self._wait_key  # a mood line keeps the mood it started waiting with
+        if key in self._gestures and not pet.standing:
+            self._wait(key, seconds)
+        else:
+            self.speak(key)
+
+    @property
+    def waiting_key(self) -> str | None:
+        return self._wait_key
+
+    def _wait(self, key: str, seconds: float) -> None:
+        """Hold a line with a gesture until the pet stands; event and clock lines only so long."""
+        if key == self._wait_key:
+            self._waited += seconds
+        else:
+            self._wait_key, self._waited = key, 0.0
+        self.pet.hold_stand = True
+        if self._waited > WAIT_LIMIT.get(key, math.inf):
+            self.speaker.drop_pending()
+            self._release_hold()
+
+    def _release_hold(self) -> None:
+        self._wait_key = None
+        self.pet.hold_stand = False
 
     def can_speak(self) -> bool:
         return self.cfg.monologue and self._free_to_speak()
@@ -259,6 +296,8 @@ class PetApp(QObject):
         """Ask the model for one line about `key`; a stock line if it is slow or fails."""
         self._abandon_speech()
         self._speech_key = key
+        self._wait_key = None
+        self.pet.hold_stand = key in self._gestures  # stay standing while the line is on its way
         if self.speech_worker is not None and self.speech_worker.isRunning():
             # An abandoned request cannot be cut short; never stack another on top.
             self._speak_fallback()
@@ -328,6 +367,9 @@ class PetApp(QObject):
             self._skip_speech()  # things changed while waiting; say nothing
             return
         self.bubble.show_notice(line)
+        gesture = self._gestures.get(self._speech_key)
+        if gesture is not None:
+            self.pet.play(gesture)  # only if standing; otherwise just the words
         self.pet.speaking = True
         self.session.add_monologue(line)
         self.speaker.spoke(line)
@@ -336,6 +378,7 @@ class PetApp(QObject):
         """Give up this turn: start the gap over rather than asking again at once."""
         self.speaker.drop_pending()
         self.speaker.reset_quiet()
+        self._release_hold()
 
     # ---- chat -----------------------------------------------------------------
 
@@ -345,6 +388,7 @@ class PetApp(QObject):
         if self.pet.speaking:
             self.bubble.start()
             self.pet.speaking = False
+        self._release_hold()
         self.pet.mood.on_interact()
         self.speaker.reset_quiet()
         self._user_talked = self._clock()
@@ -415,6 +459,7 @@ class PetApp(QObject):
     @Slot()
     def _on_bubble_closed(self) -> None:
         self.pet.speaking = False
+        self._release_hold()
         if self._phase == SHOWING:
             self._phase = IDLE
             self.pet.end_chat()
@@ -458,7 +503,8 @@ def main() -> int:
     window = PetWindow(pet, sprites)
     speaker = Speaker(personality.lines, rng, cfg.monologue_minutes, datetime.now())
     pet_app = PetApp(
-        cfg, pet, window, BubbleWindow(), InputWindow(), ChatSession(cfg), speaker=speaker
+        cfg, pet, window, BubbleWindow(), InputWindow(), ChatSession(cfg), speaker=speaker,
+        gestures=personality.gestures,
     )
     pet_app.follow_screen(screen)
     app.primaryScreenChanged.connect(pet_app.follow_screen)
