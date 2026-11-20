@@ -221,3 +221,63 @@ def test_touch_resets_idle():
 def test_tiny_bounds_do_not_crash():
     pet = make(bounds=Bounds(0, 0, 100, 100))
     run(pet, 60)
+
+
+# ---- forcing an action (developer panel) --------------------------------------
+
+
+def test_force_starts_a_floor_action_on_the_floor(pet):
+    from phoebe_pet.pet import Mode
+
+    pet._place_on_wall(left=True, y=300)
+    pet.force("walk")
+    assert (pet.mode, pet.action) == (Mode.AUTO, "walk")
+    assert pet._body.y == pet._bounds.bottom - pet._body.h
+
+
+def test_force_puts_wall_and_ceiling_actions_on_their_surface(pet):
+    pet.force("wall_climb")
+    assert pet.action == "wall_climb"
+    assert pet._body.x in (pet._bounds.left, pet._bounds.right - pet._body.w)
+    pet.force("ceiling_move")
+    assert pet.action == "ceiling_move" and pet._body.y == pet._bounds.top
+
+
+def test_force_fall_drops_from_the_top_and_lands(pet):
+    from phoebe_pet.pet import Mode
+
+    pet.force("fall")
+    assert pet.mode is Mode.AIR and pet._body.y == pet._bounds.top
+    seen = set()
+    for _ in range(600):
+        pet.tick(0.016, (9000, 9000))
+        seen.add(pet.action)
+    assert {"fall", "land"} <= seen and pet.mode is Mode.AUTO
+
+
+def test_force_previews_a_special_then_goes_back_to_normal(pet):
+    from phoebe_pet.pet import PREVIEW_TIME, Mode
+
+    pet.force("talk")
+    assert pet.mode is Mode.PREVIEW
+    view = pet.tick(0.016, (9000, 9000))
+    assert view.frame in pet._actions["talk"].frames
+    for _ in range(int(PREVIEW_TIME / 0.016) + 5):
+        pet.tick(0.016, (9000, 9000))
+    assert (pet.mode, pet.action) == (Mode.AUTO, "stand")
+
+
+def test_force_rejects_unknown_names_and_lists_known_ones(pet):
+    import pytest
+
+    with pytest.raises(ValueError, match="nope"):
+        pet.force("nope")
+    assert {"walk", "wall_climb", "talk", "fall"} <= set(pet.action_names())
+
+
+def test_chat_takes_over_a_preview(pet):
+    from phoebe_pet.pet import Mode
+
+    pet.force("resist")
+    pet.begin_think()
+    assert pet.mode is Mode.THINK

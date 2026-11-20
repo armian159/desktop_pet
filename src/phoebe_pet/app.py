@@ -15,6 +15,7 @@ from .behavior import Chooser, check_complete, load_actions
 from .bubble import BubbleWindow, InputWindow
 from .chat import ChatSession, ChatWorker
 from .config import Config, load_config
+from .dev_panel import DevPanel
 from .frames import SpriteError
 from .pet import Mode, Pet
 from .pet_window import PetWindow
@@ -35,6 +36,12 @@ IDLE, WAITING, STREAMING, SHOWING = "idle", "waiting", "streaming", "showing"
 def bounds_of(screen: QScreen) -> Bounds:
     g = screen.availableGeometry()
     return Bounds(g.left(), g.top(), g.left() + g.width(), g.top() + g.height())
+
+
+def actions_file(root: Path, character: str) -> Path:
+    """A character folder may carry its own actions.toml (e.g. longer animations)."""
+    own = root / "assets" / character / "actions.toml"
+    return own if own.is_file() else root / "actions.toml"
 
 
 class PetApp(QObject):
@@ -69,6 +76,7 @@ class PetApp(QObject):
         self._fullscreen_hidden = False
         self._tray: QSystemTrayIcon | None = None
         self._screen: QScreen | None = None
+        self.dev_panel: DevPanel | None = None
         self._wait_timer = QTimer(self)
         self._wait_timer.setSingleShot(True)
         self._wait_timer.timeout.connect(self._on_slow)
@@ -89,9 +97,17 @@ class PetApp(QObject):
         self._pause_action = menu.addAction("일시정지", self.toggle_pause)
         menu.addAction("대화 초기화", self.reset_chat)
         self._hide_action = menu.addAction("숨기기", self.toggle_hidden)
+        menu.addAction("개발자 패널", self.open_dev_panel)
         menu.addSeparator()
         menu.addAction("종료", QApplication.quit)
         return menu
+
+    @Slot()
+    def open_dev_panel(self) -> None:
+        if self.dev_panel is None:
+            self.dev_panel = DevPanel(self.pet)
+        self.dev_panel.show()
+        self.dev_panel.raise_()
 
     @Slot(QPoint)
     def _show_menu(self, pos: QPoint) -> None:
@@ -264,6 +280,9 @@ class PetApp(QObject):
             self.worker.wait(2000)
         if self._tray is not None:
             self._tray.hide()
+        if self.dev_panel is not None:
+            self.dev_panel.timer.stop()
+            self.dev_panel.close()
         for widget in (self.menu, self.input, self.bubble, self.window):
             widget.hide()
 
@@ -273,7 +292,7 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)
     try:
         cfg = load_config(ROOT / "config.toml")
-        actions = load_actions(ROOT / "actions.toml")
+        actions = load_actions(actions_file(ROOT, cfg.character))
         check_complete(actions)
         sprites = SpriteSet(ROOT / "assets" / cfg.character, cfg.scale)
     except (ValueError, OSError, SpriteError) as error:

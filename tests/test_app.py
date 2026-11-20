@@ -125,7 +125,7 @@ def find(menu, text):
 
 
 def test_menu_items(menu):
-    assert [a.text() for a in menu.actions() if not a.isSeparator()] == ["일시정지", "대화 초기화", "숨기기", "종료"]
+    assert [a.text() for a in menu.actions() if not a.isSeparator()] == ["일시정지", "대화 초기화", "숨기기", "개발자 패널", "종료"]
 
 
 def test_pause_toggles_pet_and_label(menu, pet):
@@ -224,3 +224,24 @@ def test_interaction_resets_the_quiet_clock(app_state_monologue_on, pet):
     app_state_monologue_on.idle_tick(seconds=800)
     app_state_monologue_on.idle_tick(seconds=50)
     assert app_state_monologue_on.worker is None
+
+
+def test_character_folder_can_bring_its_own_actions(tmp_path):
+    from phoebe_pet.app import actions_file
+
+    (tmp_path / "assets" / "plain").mkdir(parents=True)
+    (tmp_path / "assets" / "fancy").mkdir(parents=True)
+    own = tmp_path / "assets" / "fancy" / "actions.toml"
+    own.write_text("", encoding="utf-8")
+    assert actions_file(tmp_path, "plain") == tmp_path / "actions.toml"
+    assert actions_file(tmp_path, "fancy") == own
+
+
+def test_menu_opens_the_developer_panel(app_state, menu):
+    items = {a.text(): a for a in menu.actions()}
+    assert "개발자 패널" in items
+    items["개발자 패널"].trigger()
+    assert app_state.dev_panel.isVisible()
+    app_state.dev_panel.buttons["sit"].click()
+    assert app_state.pet.action == "sit"
+    app_state.dev_panel.close()

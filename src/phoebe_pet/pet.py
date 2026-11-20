@@ -22,6 +22,7 @@ DRAG_TILT_SPEED = 1200.0  # px/s that gives the strongest lean
 STILL_SPEED = 30.0
 RESIST_AFTER = 1.0
 CELL = 128  # frame size the offsets in actions.toml are written for
+PREVIEW_TIME = 6.0  # s a forced special action is shown before normal life resumes
 
 
 class Mode(Enum):
@@ -31,6 +32,7 @@ class Mode(Enum):
     THINK = "think"
     TALK = "talk"
     PAUSED = "paused"
+    PREVIEW = "preview"  # a special action shown on request (developer panel)
 
 
 @dataclass(frozen=True)
@@ -91,7 +93,36 @@ class Pet:
             self._tick_air(dt)
         elif self.mode is Mode.DRAGGED:
             self.drag_to(mouse, dt)
+        elif self.mode is Mode.PREVIEW and self._elapsed >= PREVIEW_TIME:
+            self._resume()
         return self._view(mouse)
+
+    def action_names(self) -> list[str]:
+        return list(self._actions)
+
+    def force(self, name: str) -> None:
+        """Do `name` right now, wherever the pet is. For trying actions out."""
+        if name not in self._actions:
+            raise ValueError(f"no action named '{name}'")
+        action = self._actions[name]
+        b, body = self._bounds, self._body
+        body.vx = body.vy = 0.0
+        self._pending_chat = None
+        self.touch()
+        if name == "fall":
+            body.y = b.top
+            self._drop()
+        elif not action.next:  # the other specials have no life of their own: just show them
+            body.y = b.bottom - body.h
+            self.mode = Mode.PREVIEW
+            self._set_special(name)
+        elif action.surface == "wall":
+            self._place_on_wall(left=body.x + body.w / 2 < (b.left + b.right) / 2)
+            self._start(name)
+        else:
+            body.y = b.top if action.surface == "ceiling" else b.bottom - body.h
+            self.mode = Mode.AUTO
+            self._start(name)
 
     def grab(self, mouse: tuple[int, int]) -> None:
         if self.mode in (Mode.THINK, Mode.TALK):
@@ -231,7 +262,7 @@ class Pet:
         self._start("stand")
 
     def _enter_chat(self, mode: Mode) -> None:
-        if self.mode in (Mode.THINK, Mode.TALK):
+        if self.mode in (Mode.THINK, Mode.TALK, Mode.PREVIEW):
             self.mode = mode
             self._set_special(mode.value)
         elif self.mode in (Mode.AIR, Mode.DRAGGED):
