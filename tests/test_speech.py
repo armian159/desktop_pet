@@ -99,3 +99,20 @@ def test_situation_mentions_time_mood_and_event(speaker):
     assert "오후 11시 20분" in text and "10분" in text and text.startswith("(") and text.endswith(")")
     assert "시무룩" in text and "던졌" in text
     assert "서 있다" in speaker.situation("calm", "calm", "stand", at(0, 5), 0)
+
+
+def test_dropped_or_replaced_event_does_not_start_cooldown(speaker):
+    speaker.note_event("thrown", 100.0); speaker.drop_pending()
+    speaker.note_event("thrown", 200.0); speaker.tick(5, "calm"); assert speaker.due() == "thrown"
+    s = make()
+    s.note_event("thrown", 100.0); s.note_event("woke", 101.0)
+    s.note_event("thrown", 102.0); s.tick(5, "calm"); assert s.due() == "thrown"
+
+
+def test_clean_rejects_long_repeat_and_letterless(speaker):
+    speaker.spoke("가" * 59 + "…")
+    assert speaker.clean("가" * 80) is None and speaker.clean("...음") is None
+
+
+def test_situation_under_a_minute_has_no_zero_minutes(speaker):
+    assert "0분째" not in speaker.situation("calm", "calm", "stand", at(9, 0), 30)

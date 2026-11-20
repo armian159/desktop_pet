@@ -60,7 +60,8 @@ class Speaker:
         self._recent: deque[str] = deque(maxlen=RECENT)
         self._pending: str | None = None
         self._delay = 0.0
-        self._last_noted: dict[str, float] = {}
+        self._pending_clock = 0.0
+        self._last_spoken: dict[str, float] = {}
         self._fired: set[tuple[datetime, str]] = set()
         slot = self._slot(now)
         if slot is not None:
@@ -77,11 +78,11 @@ class Speaker:
             self._delay -= seconds
 
     def note_event(self, event: str, clock: float) -> None:
-        last = self._last_noted.get(event)
+        last = self._last_spoken.get(event)
         if last is not None and clock - last < EVENT_COOLDOWN:
             return
-        self._last_noted[event] = clock
         self._pending = event
+        self._pending_clock = clock
         self._delay = self._rng.uniform(*EVENT_DELAY)
 
     def clock_event(self, now: datetime) -> str | None:
@@ -115,10 +116,12 @@ class Speaker:
         period = "오전" if now.hour < 12 else "오후"
         hour = now.hour % 12 or 12
         what = _EVENT_TEXT.get(key) or _ACTION_TEXT.get(action, "그냥 있다")
+        minutes = int(quiet_seconds // 60)
+        silence = f"{minutes}분째 말이 없다" if minutes else "방금까지 페비와 이야기하던 참이다"
         return (
             f"(지금은 {period} {hour}시 {now.minute}분. "
             f"페비는 {_MOOD_TEXT.get(mood, _MOOD_TEXT['calm'])}. {what}. "
-            f"방랑자님은 {int(quiet_seconds // 60)}분째 말이 없다. "
+            f"방랑자님은 {silence}. "
             "페비가 혼잣말처럼 짧게 한 문장만 말한다. 20자 안팎.)"
         )
 
@@ -126,11 +129,11 @@ class Speaker:
         if "```" in reply:
             return None
         sentence = _SENTENCE.match(reply.strip()).group(0).strip().strip(_QUOTES).strip()
-        if not sentence or sentence in self._recent:
+        if not any(c.isalnum() for c in sentence):
             return None
         if len(sentence) > MAX_CHARS:
             sentence = sentence[: MAX_CHARS - 1] + "…"
-        return sentence
+        return None if sentence in self._recent else sentence
 
     def fallback(self, key: str) -> str | None:
         options = self._lines.get(key)
@@ -142,6 +145,7 @@ class Speaker:
     def spoke(self, line: str) -> None:
         self._recent.append(line)
         if self._pending is not None and self._delay <= 0:
+            self._last_spoken[self._pending] = self._pending_clock
             self._pending = None
         self.reset_quiet()
 
