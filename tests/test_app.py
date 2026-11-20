@@ -1,3 +1,6 @@
+import random
+from datetime import datetime
+
 import pytest
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtTest import QTest
@@ -6,7 +9,9 @@ from phoebe_pet.app import PetApp
 from phoebe_pet.bubble import BubbleWindow, InputWindow
 from phoebe_pet.chat import MSG_OFFLINE, ChatSession
 from phoebe_pet.config import Config
+from phoebe_pet.mood import Mood
 from phoebe_pet.pet import Mode
+from phoebe_pet.speech import Speaker
 
 
 class FakeWorker(QObject):
@@ -110,7 +115,7 @@ def test_bubble_follows_the_pet(app_state, win, pet):
     assert app_state.bubble.pos() != before
 
 
-# ---- menu, hiding, monologue -------------------------------------------------
+# ---- menu, hiding -------------------------------------------------
 
 from phoebe_pet import fullscreen  # noqa: E402
 
@@ -182,54 +187,6 @@ def test_right_click_pops_up_the_menu(app_state, win, menu):
     menu.hide()
 
 
-def test_monologue_off_never_fires(qapp, pet, win, session):
-    state = PetApp(Config(monologue=False), pet, win, BubbleWindow(), InputWindow(), session, worker_factory=FakeWorker)
-    try:
-        state.idle_tick(seconds=3600)
-        assert state.worker is None
-    finally:
-        state.shutdown()
-
-
-@pytest.fixture
-def app_state_monologue_on(qapp, pet, win, session):
-    state = PetApp(Config(monologue=True), pet, win, BubbleWindow(), InputWindow(), session, worker_factory=FakeWorker)
-    yield state
-    state.shutdown()
-
-
-def test_monologue_fires_after_long_quiet(app_state_monologue_on):
-    app_state_monologue_on.idle_tick(seconds=60)
-    assert app_state_monologue_on.worker is None
-    app_state_monologue_on.idle_tick(seconds=3600)
-    assert app_state_monologue_on.worker.started
-
-
-def test_monologue_not_stored_as_user_turn(app_state_monologue_on, session):
-    app_state_monologue_on.idle_tick(seconds=3600)
-    app_state_monologue_on.worker.delta.emit("오늘 하늘이 맑네요.")
-    app_state_monologue_on.worker.done.emit("오늘 하늘이 맑네요.")
-    assert session.history == [{"role": "assistant", "content": "오늘 하늘이 맑네요."}]
-
-
-def test_user_cannot_start_a_second_request_during_monologue(app_state_monologue_on):
-    app_state_monologue_on.idle_tick(seconds=3600)
-    first = app_state_monologue_on.worker
-    app_state_monologue_on.input.submitted.emit("안녕")
-    assert app_state_monologue_on.worker is first
-
-
-def test_interaction_resets_the_quiet_clock(app_state_monologue_on, pet):
-    app_state_monologue_on.monologue_after = 900
-    app_state_monologue_on.idle_tick(seconds=800)
-    pet.tick(0.05, (-9999, -9999))
-    app_state_monologue_on.idle_tick(seconds=1)
-    pet.touch()
-    app_state_monologue_on.idle_tick(seconds=800)
-    app_state_monologue_on.idle_tick(seconds=50)
-    assert app_state_monologue_on.worker is None
-
-
 def test_character_folder_can_bring_its_own_actions(tmp_path):
     from phoebe_pet.app import actions_file
 
@@ -249,3 +206,95 @@ def test_menu_opens_the_developer_panel(app_state, menu):
     app_state.dev_panel.buttons["sit"].click()
     assert app_state.pet.action == "sit"
     app_state.dev_panel.close()
+
+
+# ---- speaking up on its own ---------------------------------------------------
+
+NOW = datetime(2026, 11, 20, 10, 0)
+LINES = {"calm": ("평온한 말",), "thrown": ("앗!",), "bored": ("심심해요",), "happy": ("좋아요",)}
+
+
+def make_live(pet, win, session, monologue):
+    pet.mood = Mood(NOW)  # a calm 10 a.m. mood, whatever the real clock says
+    pet.force("stand")
+    speaker = Speaker(LINES, random.Random(0), (1, 1), NOW)
+    return PetApp(
+        Config(monologue=monologue), pet, win, BubbleWindow(), InputWindow(), session,
+        worker_factory=FakeWorker, speaker=speaker, now=lambda: NOW,
+    )
+
+
+@pytest.fixture
+def app_live(qapp, pet, win, session):
+    state = make_live(pet, win, session, True)
+    yield state
+    state.shutdown()
+
+
+@pytest.fixture
+def app_live_off(qapp, pet, win, session):
+    state = make_live(pet, win, session, False)
+    yield state
+    state.shutdown()
+
+
+def test_speaks_after_gap_with_situation_prompt(app_live):
+    app_live.life_tick(30); assert app_live.speech_worker is None
+    app_live.life_tick(40)
+    msg = app_live.speech_worker.payload["messages"][-1]
+    assert msg["role"] == "user" and msg["content"].startswith("(")
+
+
+def test_reply_shows_short_bubble_and_records_one_monologue(app_live, session, pet):
+    app_live.speak("calm"); app_live.speech_worker.done.emit("구름이 예뻐요. 더 말하면...")
+    assert app_live.bubble.text() == "구름이 예뻐요." and not app_live.bubble.is_scroll_mode()
+    assert session.history == [{"role": "assistant", "content": "구름이 예뻐요."}] and pet.speaking
+    app_live.bubble.closed.emit(); assert not pet.speaking
+
+
+def test_speech_failure_uses_fallback_silently(app_live):
+    app_live.speak("calm"); app_live.speech_worker.failed.emit(MSG_OFFLINE)
+    assert app_live.bubble.text() == "평온한 말"
+
+
+def test_slow_first_token_falls_back_and_late_reply_is_ignored(app_live):
+    app_live.first_ms = 10; app_live.speak("calm"); worker = app_live.speech_worker
+    QTest.qWait(50); assert app_live.bubble.text() == "평온한 말"
+    worker.done.emit("늦은 답"); assert app_live.bubble.text() == "평온한 말"
+
+
+def test_total_timeout_falls_back(app_live):
+    app_live.total_ms = 30; app_live.speak("calm"); app_live.speech_worker.delta.emit("구름")
+    QTest.qWait(80); assert app_live.bubble.text() == "평온한 말"
+
+
+def test_user_chat_abandons_pending_speech(app_live):
+    app_live.speak("calm"); speech = app_live.speech_worker
+    app_live.input.submitted.emit("안녕"); assert app_live.worker.started
+    speech.done.emit("혼잣말"); assert app_live.bubble.text() != "혼잣말"
+
+
+@pytest.mark.parametrize("block", ["paused", "dragged", "hidden", "input_open", "user_chat_bubble"])
+def test_never_speaks_when_it_should_not(app_live, pet, win, block):
+    {"paused": lambda: app_live.toggle_pause(),
+     "dragged": lambda: pet.grab((500, 300)),
+     "hidden": lambda: app_live.toggle_hidden(),
+     "input_open": lambda: app_live.input.open_at(win.geometry()),
+     "user_chat_bubble": lambda: (app_live.input.submitted.emit("안녕"), app_live.worker.done.emit("네")),
+     }[block]()
+    app_live.life_tick(120)
+    assert app_live.speech_worker is None
+
+
+def test_monologue_off_changes_mood_but_never_speaks(app_live_off, pet):
+    app_live_off.life_tick(3600); assert app_live_off.speech_worker is None and pet.mood.boredom > 0.2
+
+
+def test_thrown_event_triggers_thrown_line(app_live, pet):
+    pet._events.append("thrown"); app_live.life_tick(1); app_live.life_tick(5)
+    assert app_live.speech_worker is not None
+    app_live.speech_worker.failed.emit("x"); assert app_live.bubble.text() == "앗!"
+
+
+def test_mood_ticks_while_hidden(app_live, pet):
+    app_live.toggle_hidden(); before = pet.mood.boredom; app_live.life_tick(600); assert pet.mood.boredom > before
