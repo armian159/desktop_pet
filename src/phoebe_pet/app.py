@@ -243,7 +243,7 @@ class PetApp(QObject):
     def _on_done(self, reply: str) -> None:
         self._wait_timer.stop()
         if self._monologue:
-            self.session.add_assistant(reply)
+            self.session.add_monologue(reply)
         else:
             self.session.succeed(reply)
         if self._phase == WAITING:

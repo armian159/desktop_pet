@@ -44,6 +44,7 @@ class ChatSession:
         self._cfg = cfg
         self.history: list[dict] = []
         self._pending: str | None = None
+        self._monologue: dict | None = None
 
     @property
     def busy(self) -> bool:
@@ -76,14 +77,19 @@ class ChatSession:
     def fail(self) -> None:
         self._pending = None
 
-    def add_assistant(self, text: str) -> None:
-        """Record something the pet said unprompted."""
-        if text.strip():
-            self.history.append({"role": "assistant", "content": text})
+    def add_monologue(self, text: str) -> None:
+        """Record something the pet said unprompted; only the latest one is kept."""
+        if not text.strip():
+            return
+        if self._monologue is not None:
+            self.history[:] = [m for m in self.history if m is not self._monologue]
+        self._monologue = {"role": "assistant", "content": text}
+        self.history.append(self._monologue)
 
     def reset(self) -> None:
         self.history.clear()
         self._pending = None
+        self._monologue = None
 
 
 class ChatWorker(QThread):
