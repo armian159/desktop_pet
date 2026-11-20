@@ -336,3 +336,14 @@ def test_intro_picks_the_direction_and_the_next_action_keeps_it(seed, tmp_path):
         turning = pet._facing_right
         pet._start("walk")
         assert pet._facing_right is turning
+
+
+def test_fast_animation_is_not_resting_even_when_standing_still(tmp_path):
+    """A still pose may be redrawn lazily; a 62 ms animation played in place may not, or it stutters."""
+    path = tmp_path / "actions.toml"
+    path.write_text(INTRO.replace('frames = ["shime1"]\nframe_ms = 100', 'frames = ["i1", "i2", "i3"]\nframe_ms = 62'), encoding="utf-8")
+    quick = load_actions(path)
+    rng = random.Random(0)
+    pet = Pet(quick, Chooser(quick, rng), B, (128, 128), rng)
+    assert pet.action == "stand" and pet.tick(0.0, FAR).resting is False
+    assert make().tick(0.0, FAR).resting is True  # the default stand is one 500 ms picture

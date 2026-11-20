@@ -16,7 +16,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 PET = Path(r"D:\study\phoebe-slack-bot")
 OUTPUT = Path(__file__).resolve().parent.parent / "ComfyUI_windows_portable" / "ComfyUI" / "output"
@@ -50,11 +50,13 @@ FLOOR = {
 # smaller; the clip that leads into them shrinks gradually so the change is not seen.
 LYING = {"creep", "to_sleep", "sleep"}
 INTO_LYING = "to_lie"
+ONE_WAY = {"to_walk", "to_sit", "to_lie", "to_sleep", "land"}  # clips that do not end where they began
 ANCHOR = ("wan_idle", 1)  # the standing image every floor clip starts from
 STAND_HEIGHT = 118  # how tall that standing image is drawn, in px
 
 # Single frames some actions still ask for by number: frame -> floor frame to copy.
-ALIASES = {"shime1": "idle01", "shime11": "sit01", "shime26": "look16"}
+# shime26 is what a sitting pet shows when the mouse comes near, so it has to be a sitting picture.
+ALIASES = {"shime1": "idle01", "shime11": "sit01", "shime26": "sit01"}
 
 # Stills for poses in the air or on a wall, which have no video clip.
 # frame -> (image, flip, rotate degrees, target height in px, or ("w", px) for width)
@@ -230,6 +232,34 @@ def cut_sequence(prefix: str, count: int, flip: bool, target, where: str = "floo
     return frames, offset
 
 
+def steady(frames: list[Image.Image], loop: bool, reach: int = 2, tolerance: float = 28.0) -> list[Image.Image]:
+    """Calm the shimmer of generated video: blend each pixel with the same pixel in the frames
+    just before and after, but only where it barely differs, so real movement stays sharp.
+    A loop wraps around; a one-way move stops at its ends."""
+    pre = []
+    for f in frames:
+        a = np.asarray(f).astype(np.float32)
+        a[..., :3] *= a[..., 3:4] / 255.0  # premultiplied, so see-through pixels add no colour
+        pre.append(a)
+    soft = [np.asarray(Image.fromarray(np.clip(a, 0, 255).astype(np.uint8)).filter(ImageFilter.BoxBlur(1))).astype(np.float32) for a in pre]
+    result = []
+    for i in range(len(pre)):
+        total, weight = pre[i].copy(), np.ones(pre[i].shape[:2], np.float32)
+        for k in range(-reach, reach + 1):
+            j = i + k
+            if k == 0 or (not loop and not 0 <= j < len(pre)):
+                continue
+            j %= len(pre)
+            near = np.exp(-((np.abs(soft[j] - soft[i]).max(-1) / tolerance) ** 2)) * (0.8 if abs(k) == 1 else 0.5)
+            total += pre[j] * near[..., None]
+            weight += near
+        mixed = total / weight[..., None]
+        alpha = mixed[..., 3:4]
+        mixed[..., :3] = np.where(alpha > 0, mixed[..., :3] * 255.0 / np.maximum(alpha, 1e-3), 0)
+        result.append(Image.fromarray(np.clip(mixed + 0.5, 0, 255).astype(np.uint8), "RGBA"))
+    return result
+
+
 def _fill(text: str, lists: dict[str, str]) -> str | None:
     """`text` with its {clip} replaced, or None while that clip has no frames."""
     if text.startswith("{") and text.strip("{}") not in lists:
@@ -284,6 +314,7 @@ def main() -> None:
     written: dict[str, Image.Image] = {}
 
     def save(name: str, frames: list[Image.Image]) -> None:
+        frames = steady(frames, loop=name not in ONE_WAY)
         names = [f"{name}{i:02d}" for i in range(1, len(frames) + 1)]
         for frame_name, frame in zip(names, frames):
             frame.save(out / f"{frame_name}.png")

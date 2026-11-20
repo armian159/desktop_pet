@@ -22,6 +22,7 @@ DRAG_TILT_SPEED = 1200.0  # px/s that gives the strongest lean
 STILL_SPEED = 30.0
 RESIST_AFTER = 1.0
 CELL = 128  # frame size the offsets in actions.toml are written for
+LAZY_FRAME_MS = 200  # pictures held at least this long can be redrawn at the slow rate without stutter
 PREVIEW_TIME = 6.0  # s a forced special action is shown before normal life resumes
 
 
@@ -355,6 +356,11 @@ class Pet:
         action = self._actions[name]
         return action.frames[int(self._elapsed * 1000 / action.frame_ms) % len(action.frames)]
 
+    @staticmethod
+    def _lazy(action: Action) -> bool:
+        """Standing still AND slow enough on screen that the window may redraw at its slow rate."""
+        return action.resting and action.frame_ms >= LAZY_FRAME_MS
+
     def _view(self, mouse: tuple[int, int]) -> View:
         body = self._body
         x, y = round(body.x), round(body.y)
@@ -368,12 +374,12 @@ class Pet:
                 frame = frames[max(0, min(len(frames) - 1, int(lean * len(frames))))]
             return View(x, y, frame, False, False)
         if self.mode is Mode.PAUSED:
-            return View(x, y, self._frame("stand"), facing, True)
+            return View(x, y, self._frame("stand"), facing, self._lazy(self._actions["stand"]))
         if self.mode is not Mode.AUTO:
             return View(x, y, self._frame(self.action), facing, False)
         action = self._actions[self.action]
         frame = self._frame(self.action)
-        resting = action.resting
+        resting = self._lazy(action)
         if self.action in ("stand", "sit"):
             cx, cy = body.x + body.w / 2, body.y + body.h / 2
             if math.hypot(mouse[0] - cx, mouse[1] - cy) < LOOK_RADIUS:
