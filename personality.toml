@@ -4,7 +4,7 @@
 #                    1보다 크면 더 자주, 1보다 작으면 덜 자주, 0이면 아예 안 뽑는다.
 #                    적지 않은 기분은 1로 본다. 음수는 쓸 수 없다.
 # [gestures]         상황 이름 → 그 상황에서 재생할 몸짓 동작 이름(woke 제외).
-# [affinity.gesture_<기분>]  그 기분일 때만 뽑히는 몸짓. 자기 기분만 3, 나머지는 0.
+# [affinity.gesture_<기분>]  그 기분일 때만 뽑히는 몸짓. 자기 기분만 1, 나머지는 0.
 # [lines]            말풍선 대신 쓰는 짧은 혼잣말. 기분 이름과 상황 이름(thrown woke
 #                    released lunch evening late_night)별로 여러 줄을 적어 둔다.
 
@@ -101,7 +101,7 @@ evening = "gesture_evening"
 late_night = "gesture_late_night"
 
 [affinity.gesture_sleepy]
-sleepy = 3
+sleepy = 1
 sulky = 0
 bored = 0
 happy = 0
@@ -109,7 +109,7 @@ calm = 0
 
 [affinity.gesture_sulky]
 sleepy = 0
-sulky = 3
+sulky = 1
 bored = 0
 happy = 0
 calm = 0
@@ -117,7 +117,7 @@ calm = 0
 [affinity.gesture_bored]
 sleepy = 0
 sulky = 0
-bored = 3
+bored = 1
 happy = 0
 calm = 0
 
@@ -125,7 +125,7 @@ calm = 0
 sleepy = 0
 sulky = 0
 bored = 0
-happy = 3
+happy = 1
 calm = 0
 
 [affinity.gesture_calm]
@@ -133,7 +133,7 @@ sleepy = 0
 sulky = 0
 bored = 0
 happy = 0
-calm = 3
+calm = 1
 
 [lines]
 sleepy = [

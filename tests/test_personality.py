@@ -90,4 +90,4 @@ def test_mood_gestures_only_in_their_own_mood():
     p = load_personality(ROOT / "personality.toml")
     for mood in NAMES:
         factors = p.affinity[f"gesture_{mood}"]
-        assert factors[mood] > 0 and all(factors[m] == 0 for m in NAMES if m != mood)
+        assert factors[mood] == 1 and all(factors[m] == 0 for m in NAMES if m != mood)
