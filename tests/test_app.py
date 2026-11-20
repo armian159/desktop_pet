@@ -317,3 +317,18 @@ def test_hidden_counts_as_nobody_around_and_awake(app_live, pet):
     boredom, energy = pet.mood.boredom, pet.mood.energy
     app_live.life_tick(600)
     assert pet.mood.boredom > boredom and pet.mood.energy < energy
+
+
+def test_hiding_mid_monologue_drops_it(app_live, pet):
+    app_live.speak("calm"); app_live.speech_worker.done.emit("구름이 예뻐요.")
+    assert app_live.bubble.isVisible() and pet.speaking
+    app_live.toggle_hidden(); assert not pet.speaking
+    app_live.toggle_hidden(); assert not app_live.bubble.isVisible()
+
+
+def test_closed_chat_reply_does_not_come_back_after_unhide(app_state):
+    app_state.input.submitted.emit("안녕")
+    app_state.worker.delta.emit("네"); app_state.worker.done.emit("네")
+    app_state.bubble.close_button.click(); assert not app_state.bubble.isVisible()
+    app_state.toggle_hidden(); app_state.toggle_hidden()
+    assert not app_state.bubble.isVisible()

@@ -164,6 +164,10 @@ class PetApp(QObject):
         visible = not (self._user_hidden or self._fullscreen_hidden)
         if visible == self.window.isVisible():
             return
+        if not visible and self.pet.speaking:
+            # A monologue is not worth bringing back later; drop it.
+            self.bubble.start()
+            self.pet.speaking = False
         # A chat may be in flight; the bubble keeps collecting it out of sight
         # and shows it when the pet comes back.
         self.bubble.suppress(not visible)

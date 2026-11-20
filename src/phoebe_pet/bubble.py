@@ -35,6 +35,7 @@ class BubbleWindow(QWidget):
         self._text = ""
         self._suppressed = False
         self._finished = False
+        self._dismissed = False  # the current text was closed or timed out
         self._delay_ms: int | None = None
         self._anchor = QRect(0, 0, 1, 1)
         self._below = False
@@ -84,6 +85,7 @@ class BubbleWindow(QWidget):
         self._timer.stop()
         self._text = ""
         self._finished = False
+        self._dismissed = False
         self._set_scroll_mode(False)
         self._label.setText("")
         self.hide()
@@ -96,7 +98,7 @@ class BubbleWindow(QWidget):
         if on:
             self._timer.stop()
             self.hide()
-        elif self._text:
+        elif self._text and not self._dismissed:
             self._present()
             if self._finished:
                 self._arm()
@@ -162,6 +164,7 @@ class BubbleWindow(QWidget):
 
     def _dismiss(self) -> None:
         self._timer.stop()
+        self._dismissed = True
         if self.isVisible():
             self.hide()
             self.closed.emit()

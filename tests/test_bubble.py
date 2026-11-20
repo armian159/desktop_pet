@@ -132,3 +132,23 @@ def test_empty_enter_does_nothing(inp):
     spy = QSignalSpy(inp.submitted)
     QTest.keyClick(inp.edit, Qt.Key_Return)
     assert spy.count() == 0 and inp.isVisible()
+
+
+def test_dismissed_text_does_not_come_back_after_suppression(bubble):
+    bubble.show_notice("지난 말")
+    bubble.close_button.click()  # hidden buttons still click
+    assert not bubble.isVisible()
+    bubble.suppress(True)
+    bubble.suppress(False)
+    assert not bubble.isVisible()
+
+
+def test_timed_out_text_does_not_come_back_after_suppression(bubble):
+    bubble.start()
+    bubble.append("짧은 말")
+    bubble.finish(delay_ms=10)
+    QTest.qWait(60)
+    assert not bubble.isVisible()
+    bubble.suppress(True)
+    bubble.suppress(False)
+    assert not bubble.isVisible()
