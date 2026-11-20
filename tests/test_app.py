@@ -332,3 +332,24 @@ def test_closed_chat_reply_does_not_come_back_after_unhide(app_state):
     app_state.bubble.close_button.click(); assert not app_state.bubble.isVisible()
     app_state.toggle_hidden(); app_state.toggle_hidden()
     assert not app_state.bubble.isVisible()
+
+
+def test_silence_is_counted_from_the_users_last_chat_not_the_last_monologue(qapp, pet, win, session):
+    t = [0.0]
+    pet.mood = Mood(NOW); pet.force("stand")
+    state = PetApp(
+        Config(), pet, win, BubbleWindow(), InputWindow(), session, worker_factory=FakeWorker,
+        speaker=Speaker(LINES, random.Random(0), (1, 1), NOW), clock=lambda: t[0], now=lambda: NOW,
+    )
+    try:
+        state.open_input(); state.input.hide()
+        t[0] = 600; state.speak("calm")
+        assert "10분째 말이 없다" in state.speech_worker.payload["messages"][-1]["content"]
+        state.speech_worker.done.emit("구름이 예뻐요."); state.bubble.close_button.click()
+        t[0] = 900; state.speak("calm")
+        assert "15분째 말이 없다" in state.speech_worker.payload["messages"][-1]["content"]
+        state.input.submitted.emit("안녕"); state.worker.done.emit("네")
+        t[0] = 960; state.speak("calm")
+        assert "1분째 말이 없다" in state.speech_worker.payload["messages"][-1]["content"]
+    finally:
+        state.shutdown()

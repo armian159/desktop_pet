@@ -81,6 +81,7 @@ class PetApp(QObject):
         self._clock = clock
         self._now = now
         self._last_poll = clock()
+        self._user_talked = clock()  # when the user last talked to the pet
         self._phase = IDLE
         self._speech_count = 0
         self._speech_live: int | None = None  # the request whose reply is still wanted
@@ -264,7 +265,7 @@ class PetApp(QObject):
             return
         pet = self.pet
         situation = self.speaker.situation(
-            key, pet.mood.name, pet.action, self._now(), self.speaker.quiet_seconds
+            key, pet.mood.name, pet.action, self._now(), self._clock() - self._user_talked
         )
         self._speech_count += 1
         rid = self._speech_live = self._speech_count
@@ -344,6 +345,7 @@ class PetApp(QObject):
             self.pet.speaking = False
         self.pet.mood.on_interact()
         self.speaker.reset_quiet()
+        self._user_talked = self._clock()
 
     @Slot()
     def open_input(self) -> None:
@@ -392,6 +394,7 @@ class PetApp(QObject):
         self._wait_timer.stop()
         self.session.succeed(reply)
         self.pet.mood.on_chat_done()
+        self._user_talked = self._clock()
         if self._phase == WAITING:
             self.bubble.show_notice(MSG_NO_REPLY)
         else:
@@ -402,6 +405,7 @@ class PetApp(QObject):
     def _on_failed(self, message: str) -> None:
         self._wait_timer.stop()
         self._phase = IDLE
+        self._user_talked = self._clock()
         self.pet.end_chat()
         self.session.fail()
         self.bubble.show_notice(message)
