@@ -309,3 +309,11 @@ def test_event_cooldown_survives_a_poll_while_waiting_for_the_reply(app_live, pe
     app_live.bubble.close_button.click(); assert not app_live.bubble.isVisible() and not pet.speaking
     pet._events.append("thrown"); app_live.life_tick(1); app_live.life_tick(5)
     assert app_live.speech_worker is first
+
+
+def test_hidden_counts_as_nobody_around_and_awake(app_live, pet):
+    pet.force("lie"); pet.mouse_near = True
+    app_live.toggle_hidden()
+    boredom, energy = pet.mood.boredom, pet.mood.energy
+    app_live.life_tick(600)
+    assert pet.mood.boredom > boredom and pet.mood.energy < energy

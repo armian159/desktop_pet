@@ -205,7 +205,11 @@ class PetApp(QObject):
         """Let mood drift, collect what just happened, and speak up when a line is due."""
         pet, speaker = self.pet, self.speaker
         now = self._now()
-        pet.mood.tick(seconds, pet.action, now, pet.mouse_near)
+        if self.window.isVisible():
+            pet.mood.tick(seconds, pet.action, now, pet.mouse_near)
+        else:
+            # Out of sight the pet is frozen; count it as awake with nobody around.
+            pet.mood.tick(seconds, "stand", now, False)
         clock = self._clock()
         events = pet.take_events()
         slot = speaker.clock_event(now)
