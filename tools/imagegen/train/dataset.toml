@@ -1,0 +1,13 @@
+[general]
+enable_bucket = true
+min_bucket_reso = 512
+max_bucket_reso = 1024
+caption_extension = ".txt"
+
+[[datasets]]
+resolution = 768
+batch_size = 1
+
+  [[datasets.subsets]]
+  image_dir = 'D:\study\ComfyUI\train\img'
+  num_repeats = 10
