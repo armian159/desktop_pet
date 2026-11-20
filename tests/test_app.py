@@ -353,3 +353,11 @@ def test_silence_is_counted_from_the_users_last_chat_not_the_last_monologue(qapp
         assert "1분째 말이 없다" in state.speech_worker.payload["messages"][-1]["content"]
     finally:
         state.shutdown()
+
+
+def test_gap_restarts_when_a_chat_reply_is_closed(app_live):
+    app_live.input.submitted.emit("안녕"); app_live.worker.delta.emit("네"); app_live.worker.done.emit("네")
+    app_live.life_tick(120)  # reading the reply for a while
+    app_live.bubble.close_button.click()
+    assert app_live.speaker.quiet_seconds == 0
+    app_live.life_tick(30); assert app_live.speech_worker is None

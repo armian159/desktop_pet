@@ -416,6 +416,7 @@ class PetApp(QObject):
         if self._phase == SHOWING:
             self._phase = IDLE
             self.pet.end_chat()
+            self.speaker.reset_quiet()  # the gap runs from when the user is done reading
 
     def shutdown(self) -> None:
         self._wait_timer.stop()
