@@ -128,3 +128,14 @@ PHOEBE_ACTIONS = (
 @pytest.mark.parametrize("action", PHOEBE_ACTIONS)
 def test_situation_describes_the_phoebe_actions(speaker, action):
     assert "그냥 있다" not in speaker.situation("calm", "calm", action, at(9, 0), 0)
+
+
+GESTURE_ACTIONS = (
+    "gesture_sleepy", "gesture_sulky", "gesture_bored", "gesture_happy", "gesture_calm",
+    "gesture_thrown", "gesture_released", "gesture_lunch", "gesture_evening", "gesture_late_night",
+)
+
+
+@pytest.mark.parametrize("action", GESTURE_ACTIONS)
+def test_situation_describes_the_gestures(speaker, action):
+    assert "그냥 있다" not in speaker.situation("calm", "calm", action, at(9, 0), 0)
