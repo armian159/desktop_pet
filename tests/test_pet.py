@@ -438,3 +438,30 @@ def test_gentle_release_leaves_cheer_alone(pet):
     pet.drag_to((510, 300), 0.05)
     pet.release()
     assert pet.mood.cheer == before
+
+
+def test_hold_stand_keeps_choosing_stand(gesture_pet):
+    gesture_pet.force("stand"); gesture_pet.hold_stand = True
+    for _ in range(5):
+        gesture_pet._duration = 0; gesture_pet.tick(0.016, (9000, 9000))
+        assert gesture_pet.action == "stand"
+
+
+def test_play_runs_once_then_stands(gesture_pet):
+    gesture_pet.force("stand"); gesture_pet.play("gesture_sleepy")
+    assert gesture_pet.action == "gesture_sleepy"
+    run_until(gesture_pet, lambda: gesture_pet.action == "stand")
+
+
+def test_play_is_ignored_unless_standing(gesture_pet):
+    gesture_pet.force("sit"); gesture_pet.play("gesture_sleepy"); assert gesture_pet.action == "sit"
+    assert not gesture_pet.standing
+
+
+def test_last_action_is_what_came_before_this_one(gesture_pet):
+    pet = gesture_pet
+    pet.force("stand"); pet.play("gesture_sleepy")
+    run_until(pet, lambda: pet.action == "stand")
+    assert pet.last_action == "gesture_sleepy"
+    pet.hold_stand = True; pet._duration = 0; pet.tick(0.016, (9000, 9000))
+    assert pet.action == "stand" and pet.last_action == "gesture_sleepy"  # standing on is the same stand

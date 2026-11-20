@@ -48,3 +48,21 @@ def win(qapp, pet, sprites):
     yield window
     window.timer.stop()
     window.close()
+
+
+@pytest.fixture
+def gesture_pet():
+    """A pet whose action table also has two gestures: stand-alikes that go back to standing."""
+    import dataclasses
+
+    from phoebe_pet.behavior import Chooser, load_actions
+    from phoebe_pet.pet import Pet
+    from phoebe_pet.physics import Bounds
+
+    actions = load_actions(ROOT / "actions.toml")
+    for name in ("gesture_sleepy", "gesture_thrown"):
+        actions[name] = dataclasses.replace(
+            actions["stand"], name=name, next=("stand",), weight=0, idle_weight=0, duration=(0.1, 0.1)
+        )
+    rng = random.Random(0)
+    return Pet(actions, Chooser(actions, rng), Bounds(0, 0, 1920, 1040), (128, 128), rng)

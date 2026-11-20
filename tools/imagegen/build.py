@@ -26,6 +26,11 @@ import import_sheet as tool  # noqa: E402
 SIZE = 128
 WORK = 512  # images are shrunk to this before cutting; plenty for 128px frames
 
+# Standing gestures: key -> weight (1 for the five moods, which the stand action may pick by itself;
+# 0 for the five events, which only the program triggers).
+GESTURES = {"sleepy": 1, "sulky": 1, "bored": 1, "happy": 1, "calm": 1,
+            "thrown": 0, "released": 0, "lunch": 0, "evening": 0, "late_night": 0}
+
 # Floor animations are all grown from one standing image (see vid_set.py), so the camera
 # and the character's size are the same in every clip. They are cut with ONE scale and ONE
 # foot line taken from the standing image, never per clip, or the head would change size
@@ -45,10 +50,12 @@ FLOOR = {
     "think": ("u_think", 1, 32),
     "look": ("u_look", 1, 32),
     "land": ("u_land", 13, 22),  # only the rise from the crouch back to standing
+    **{f"g_{key}": (f"g_{key}", 1, 32) for key in GESTURES},
+    "g_woke": ("g_woke", 1, 32),
 }
 # Lying down the body is longer than the frame is wide, so these clips are drawn a little
 # smaller; the clip that leads into them shrinks gradually so the change is not seen.
-LYING = {"creep", "to_sleep", "sleep"}
+LYING = {"creep", "to_sleep", "sleep", "g_woke"}
 INTO_LYING = "to_lie"
 ONE_WAY = {"to_walk", "to_sit", "to_lie", "to_sleep", "land"}  # clips that do not end where they began
 ANCHOR = ("wan_idle", 1)  # the standing image every floor clip starts from
@@ -80,7 +87,8 @@ SEQUENCES = {
 # What the character's own actions.toml changes from the project default: section -> {key: value}.
 # A change that names a clip which has no frames yet is skipped. "{name_r}" is a clip played backwards.
 ACTION_CHANGES = {
-    "action.stand": {"frames": "{idle}", "frame_ms": "62", "next": '["to_walk", "to_run", "sit_down", "look_up", "stand"]'},
+    "action.stand": {"frames": "{idle}", "frame_ms": "62", "next": '["to_walk", "to_run", "sit_down", "look_up", "stand", '
+                    '"gesture_sleepy", "gesture_sulky", "gesture_bored", "gesture_happy", "gesture_calm"]'},
     "action.walk": {"frames": "{walk}", "frame_ms": "62", "speed": "40", "next": '["from_walk"]'},
     "action.run": {"frames": "{walk}", "frame_ms": "21", "speed": "150", "next": '["from_walk"]'},
     "action.look_up": {"frames": "{look}", "frame_ms": "62", "duration": "[2, 2]"},
@@ -111,7 +119,8 @@ TRANSITIONS = {
     "lie_down": ("{to_lie}", 62, 1, 2, ["creep", "doze_off"], ""),
     "get_up": ("{to_lie_r}", 62, 1, 1, ["sit"], ""),
     "doze_off": ("{to_sleep}", 62, 2, 4, ["lie"], ""),
-    "wake_up": ("{to_sleep_r}", 62, 1, 1, ["creep", "get_up"], ""),
+    "wake_up": ("{wake}", 62, 1, 1, ["creep", "get_up"], ""),
+    **{f"gesture_{key}": (f"{{g_{key}}}", 62, w, w, ["stand"], "") for key, w in GESTURES.items()},
 }
 
 
@@ -284,9 +293,9 @@ def write_actions(out: Path, lists: dict[str, str]) -> None:
         if change and any(_fill(v, lists) is None for v in changes.values()):
             change = None  # this action's clip is missing: leave the whole action as it was
         if change and key == "next":
-            targets = tomllib.loads(f"n = {change}")["n"]
-            if any(t in TRANSITIONS and t not in made for t in targets):
-                change = None
+            # leave out only the transitions that could not be made, not the whole list
+            targets = [t for t in tomllib.loads(f"n = {change}")["n"] if t not in TRANSITIONS or t in made]
+            change = "[" + ", ".join(f'"{t}"' for t in targets) + "]" if targets else None  # nothing left: keep the original
         if key == "next" and not change:  # nothing may point at an action that was dropped
             kept = [t for t in tomllib.loads(line)["next"] if f"action.{t}" not in DROPPED]
             line = "next = [" + ", ".join(f'"{t}"' for t in kept) + "]"
@@ -349,6 +358,9 @@ def main() -> None:
         lists[name + "_offset"] = f"[{offset[0]}, {offset[1]}]"
         # holding on: the first few frames back and forth, a small shift of weight instead of a frozen picture
         lists[name + "_hold"] = "[" + ", ".join(f'"{name}{i:02d}"' for i in (1, 2, 3, 4, 3, 2)) + "]"
+    if "to_sleep" in lists:  # waking up is the sleep played backwards, then the stretch on her stomach
+        lists["wake"] = "[" + ", ".join(
+            [lists["to_sleep_r"].strip("[]")] + ([lists["g_woke"].strip("[]")] if "g_woke" in lists else [])) + "]"
     write_actions(out, lists)
     cache: dict[str, Image.Image] = {}
     frames = {}

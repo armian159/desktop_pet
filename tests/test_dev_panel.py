@@ -111,3 +111,12 @@ def test_status_shows_time_until_next_speech(qapp, pet):
 
 def test_status_without_next_speech_shows_dash(panel):
     assert "다음 혼잣말 —" in panel.status.text()
+
+
+def test_status_shows_waiting_line(qapp, pet):
+    p = DevPanel(pet, waiting=lambda: "thrown"); p.refresh()
+    assert "기다리는 대사: thrown" in p.status.text(); p.timer.stop(); p.close()
+
+
+def test_status_has_no_waiting_line_when_nothing_waits(panel):
+    assert "기다리는 대사" not in panel.status.text()

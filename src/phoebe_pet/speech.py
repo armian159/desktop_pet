@@ -56,6 +56,16 @@ _ACTION_TEXT = {
     "wall_climb": "벽을 타고 오르고 있다",
     "ceiling_hold": "천장에 매달려 있다",
     "ceiling_move": "천장에 매달려 옮겨 가고 있다",
+    "gesture_sleepy": "손으로 입을 가리고 하품하고 있다",
+    "gesture_sulky": "볼을 부풀리고 고개를 홱 돌렸다",
+    "gesture_bored": "발끝으로 바닥을 톡톡 차고 있다",
+    "gesture_happy": "두 손을 모으고 폴짝폴짝 뛰고 있다",
+    "gesture_calm": "눈을 감고 두 손을 모아 기도하고 있다",
+    "gesture_thrown": "머리를 감싸고 비틀거리고 있다",
+    "gesture_released": "가슴을 쓸어내리며 안도하고 있다",
+    "gesture_lunch": "배를 쓰다듬으며 쑥스러워하고 있다",
+    "gesture_evening": "손을 흔들며 인사하고 있다",
+    "gesture_late_night": "졸린 눈으로 손을 흔들며 꾸벅이고 있다",
 }
 
 

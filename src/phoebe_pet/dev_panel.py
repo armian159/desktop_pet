@@ -20,6 +20,7 @@ class DevPanel(QWidget):
         pet: Pet,
         speak_now: Callable[[], None] | None = None,
         next_speech: Callable[[], float | None] | None = None,
+        waiting: Callable[[], str | None] | None = None,
     ) -> None:
         super().__init__(None, Qt.Tool | Qt.WindowStaysOnTopHint)
         self.setWindowTitle("페비 개발자 패널")
@@ -27,6 +28,7 @@ class DevPanel(QWidget):
         self._chosen: str | None = None
         self._speak_now = speak_now
         self._next_speech = next_speech
+        self._waiting = waiting
         self.status = QLabel()
         self.status.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.repeat = QCheckBox("고른 동작 반복")
@@ -88,8 +90,10 @@ class DevPanel(QWidget):
         if self.repeat.isChecked() and self._chosen and not busy and pet.action != self._chosen:
             pet.force(self._chosen)
         mood = pet.mood
+        waiting = self._waiting() if self._waiting is not None else None
         self.status.setText(
             f"상태: {pet.mode.value}   동작: {pet.action}   가만히 둔 시간: {pet.idle_seconds:.0f}초\n"
             f"기운 {mood.energy:.2f}  심심함 {mood.boredom:.2f}  기분 {mood.cheer:.2f}  [{mood.name}]  "
             f"{self._next_speech_text()}"
+            + (f"\n기다리는 대사: {waiting}" if waiting is not None else "")
         )
