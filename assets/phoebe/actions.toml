@@ -1,0 +1,361 @@
+# 동작 정의. 프레임 번호는 Shimeji-ee 기본 actions.xml 을 따른다.
+#   surface   floor | wall | ceiling
+#   frames    차례로 보여 줄 그림 이름
+#   frame_ms  그림 한 장을 보여 주는 시간
+#   speed     면을 따라 움직이는 속도(px/초). 0이면 제자리
+#   duration  [최소, 최대] 초
+#   weight / idle_weight   평소 / 60초 이상 건드리지 않았을 때 뽑힐 가중치
+#   next      이 동작 다음에 올 수 있는 동작
+#   offset    그림을 몸 상자에서 옮겨 그리는 양 [dx, dy] (왼쪽을 볼 때 기준)
+#   intro     (선택) true면 다음 동작으로 넘어가는 전환 동작. 갈 방향을 여기서 정하고 다음 동작은 방향을 바꾸지 않는다
+# 동작 길이는 frames 한 바퀴의 정수배로 맞춰진다. 한 번만 재생할 전환 동작은 duration을 한 바퀴보다 짧게 적는다.
+
+[action.stand]
+surface = "floor"
+frames = ["idle01", "idle02", "idle03", "idle04", "idle05", "idle06", "idle07", "idle08", "idle09", "idle10", "idle11", "idle12", "idle13", "idle14", "idle15", "idle16", "idle17", "idle18", "idle19", "idle20", "idle21", "idle22", "idle23", "idle24", "idle25", "idle26", "idle27", "idle28", "idle29", "idle30", "idle31", "idle32"]
+frame_ms = 62
+speed = 0
+duration = [6, 15]
+weight = 6
+idle_weight = 4
+next = ["to_walk", "to_run", "sit_down", "look_up", "stand", "gesture_sleepy", "gesture_sulky", "gesture_bored", "gesture_happy", "gesture_calm"]
+
+[action.walk]
+surface = "floor"
+frames = ["walk01", "walk02", "walk03", "walk04", "walk05", "walk06", "walk07", "walk08", "walk09", "walk10", "walk11", "walk12", "walk13", "walk14", "walk15", "walk16", "walk17", "walk18", "walk19", "walk20", "walk21", "walk22", "walk23", "walk24", "walk25", "walk26", "walk27", "walk28", "walk29", "walk30", "walk31", "walk32"]
+frame_ms = 62
+speed = 40
+duration = [2, 8]
+weight = 5
+idle_weight = 4
+next = ["from_walk"]
+
+[action.run]
+surface = "floor"
+frames = ["walk01", "walk02", "walk03", "walk04", "walk05", "walk06", "walk07", "walk08", "walk09", "walk10", "walk11", "walk12", "walk13", "walk14", "walk15", "walk16", "walk17", "walk18", "walk19", "walk20", "walk21", "walk22", "walk23", "walk24", "walk25", "walk26", "walk27", "walk28", "walk29", "walk30", "walk31", "walk32"]
+frame_ms = 21
+speed = 150
+duration = [1, 3]
+weight = 1
+idle_weight = 0.2
+next = ["from_walk"]
+
+[action.look_up]
+surface = "floor"
+frames = ["look01", "look02", "look03", "look04", "look05", "look06", "look07", "look08", "look09", "look10", "look11", "look12", "look13", "look14", "look15", "look16", "look17", "look18", "look19", "look20", "look21", "look22", "look23", "look24", "look25", "look26", "look27", "look28", "look29", "look30", "look31", "look32"]
+frame_ms = 62
+speed = 0
+duration = [2, 2]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.sit]
+surface = "floor"
+frames = ["sit01", "sit02", "sit03", "sit04", "sit05", "sit06", "sit07", "sit08", "sit09", "sit10", "sit11", "sit12", "sit13", "sit14", "sit15", "sit16", "sit17", "sit18", "sit19", "sit20", "sit21", "sit22", "sit23", "sit24", "sit25", "sit26", "sit27", "sit28", "sit29", "sit30", "sit31", "sit32"]
+frame_ms = 62
+speed = 0
+duration = [8, 20]
+weight = 2
+idle_weight = 4
+next = ["stand_up", "sit_dangle", "lie_down"]
+
+[action.sit_dangle]
+surface = "floor"
+frames = ["sit01", "sit02", "sit03", "sit04", "sit05", "sit06", "sit07", "sit08", "sit09", "sit10", "sit11", "sit12", "sit13", "sit14", "sit15", "sit16", "sit17", "sit18", "sit19", "sit20", "sit21", "sit22", "sit23", "sit24", "sit25", "sit26", "sit27", "sit28", "sit29", "sit30", "sit31", "sit32"]
+frame_ms = 62
+speed = 0
+duration = [6, 12]
+weight = 1
+idle_weight = 2
+next = ["sit"]
+offset = [0, 0]
+
+[action.lie]
+surface = "floor"
+frames = ["sleep01", "sleep02", "sleep03", "sleep04", "sleep05", "sleep06", "sleep07", "sleep08", "sleep09", "sleep10", "sleep11", "sleep12", "sleep13", "sleep14", "sleep15", "sleep16", "sleep17", "sleep18", "sleep19", "sleep20", "sleep21", "sleep22", "sleep23", "sleep24", "sleep25", "sleep26", "sleep27", "sleep28", "sleep29", "sleep30", "sleep31", "sleep32"]
+frame_ms = 62
+speed = 0
+duration = [15, 40]
+weight = 1
+idle_weight = 2
+next = ["wake_up"]
+
+[action.creep]
+surface = "floor"
+frames = ["creep01", "creep02", "creep03", "creep04", "creep05", "creep06", "creep07", "creep08", "creep09", "creep10", "creep11", "creep12", "creep13", "creep14", "creep15", "creep16", "creep17", "creep18", "creep19", "creep20", "creep21", "creep22", "creep23", "creep24", "creep25", "creep26", "creep27", "creep28", "creep29", "creep30", "creep31", "creep32"]
+frame_ms = 62
+speed = 20
+duration = [2, 6]
+weight = 1
+idle_weight = 1
+next = ["doze_off", "get_up"]
+
+[action.wall_hold]
+surface = "wall"
+frames = ["climb01", "climb02", "climb03", "climb04", "climb03", "climb02"]
+frame_ms = 125
+speed = 0
+duration = [3, 8]
+weight = 2
+idle_weight = 2
+next = ["wall_climb", "wall_hold"]
+offset = [-40, 0]
+
+[action.wall_climb]
+surface = "wall"
+frames = ["climb01", "climb02", "climb03", "climb04", "climb05", "climb06", "climb07", "climb08", "climb09", "climb10", "climb11", "climb12", "climb13", "climb14", "climb15", "climb16", "climb17", "climb18", "climb19", "climb20", "climb21", "climb22", "climb23", "climb24", "climb25", "climb26", "climb27", "climb28", "climb29", "climb30", "climb31", "climb32"]
+frame_ms = 62
+speed = 50
+duration = [2, 6]
+weight = 4
+idle_weight = 2
+next = ["wall_hold"]
+offset = [-40, 0]
+
+[action.ceiling_hold]
+surface = "ceiling"
+frames = ["ceiling01", "ceiling02", "ceiling03", "ceiling04", "ceiling03", "ceiling02"]
+frame_ms = 125
+speed = 0
+duration = [3, 8]
+weight = 2
+idle_weight = 2
+next = ["ceiling_move", "ceiling_hold"]
+offset = [0, -1]
+
+[action.ceiling_move]
+surface = "ceiling"
+frames = ["ceiling01", "ceiling02", "ceiling03", "ceiling04", "ceiling05", "ceiling06", "ceiling07", "ceiling08", "ceiling09", "ceiling10", "ceiling11", "ceiling12", "ceiling13", "ceiling14", "ceiling15", "ceiling16", "ceiling17", "ceiling18", "ceiling19", "ceiling20", "ceiling21", "ceiling22", "ceiling23", "ceiling24", "ceiling25", "ceiling26", "ceiling27", "ceiling28", "ceiling29", "ceiling30", "ceiling31", "ceiling32"]
+frame_ms = 62
+speed = 40
+duration = [2, 6]
+weight = 4
+idle_weight = 2
+next = ["ceiling_hold"]
+offset = [0, -1]
+
+# 특수 동작: 프로그램이 상황에 따라 직접 고른다.
+[special.fall]
+frames = ["fall01", "fall02", "fall03", "fall04", "fall05", "fall06", "fall07", "fall08", "fall09", "fall10", "fall11", "fall12", "fall13", "fall14", "fall15", "fall16", "fall17", "fall18", "fall19", "fall20", "fall21", "fall22", "fall23", "fall24", "fall25", "fall26", "fall27", "fall28", "fall29", "fall30", "fall31", "fall32"]
+frame_ms = 62
+
+[special.land]
+frames = ["land01", "land02", "land03", "land04", "land05", "land06", "land07", "land08", "land09", "land10"]
+frame_ms = 40
+
+# 끌려갈 때: 왼쪽으로 빠르게 ... 가만히 ... 오른쪽으로 빠르게
+[special.drag]
+frames = ["shime10", "shime8", "shime1", "shime7", "shime9"]
+frame_ms = 500
+
+# 잡혀 있는 동안 버둥거린다 (세게 휘두를 때만 drag 그림으로 기울어진다)
+[special.resist]
+frames = ["resist01", "resist02", "resist03", "resist04", "resist05", "resist06", "resist07", "resist08", "resist09", "resist10", "resist11", "resist12", "resist13", "resist14", "resist15", "resist16", "resist17", "resist18", "resist19", "resist20", "resist21", "resist22", "resist23", "resist24", "resist25", "resist26", "resist27", "resist28", "resist29", "resist30", "resist31", "resist32"]
+frame_ms = 62
+
+[special.think]
+frames = ["think01", "think02", "think03", "think04", "think05", "think06", "think07", "think08", "think09", "think10", "think11", "think12", "think13", "think14", "think15", "think16", "think17", "think18", "think19", "think20", "think21", "think22", "think23", "think24", "think25", "think26", "think27", "think28", "think29", "think30", "think31", "think32"]
+frame_ms = 62
+
+[special.talk]
+frames = ["talk01", "talk02", "talk03", "talk04", "talk05", "talk06", "talk07", "talk08", "talk09", "talk10", "talk11", "talk12", "talk13", "talk14", "talk15", "talk16", "talk17", "talk18", "talk19", "talk20", "talk21", "talk22", "talk23", "talk24", "talk25", "talk26", "talk27", "talk28", "talk29", "talk30", "talk31", "talk32"]
+frame_ms = 62
+
+[special.look_at_mouse]
+frames = ["shime26"]
+frame_ms = 500
+
+# 자세 사이를 잇는 전환 동작 (tools/imagegen/build.py 가 만든다)
+
+[action.to_walk]
+surface = "floor"
+frames = ["to_walk01", "to_walk02", "to_walk03", "to_walk04", "to_walk05", "to_walk06", "to_walk07", "to_walk08", "to_walk09", "to_walk10", "to_walk11", "to_walk12", "to_walk13", "to_walk14", "to_walk15", "to_walk16", "to_walk17"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 5
+idle_weight = 4
+next = ["walk"]
+intro = true
+
+[action.to_run]
+surface = "floor"
+frames = ["to_walk01", "to_walk02", "to_walk03", "to_walk04", "to_walk05", "to_walk06", "to_walk07", "to_walk08", "to_walk09", "to_walk10", "to_walk11", "to_walk12", "to_walk13", "to_walk14", "to_walk15", "to_walk16", "to_walk17"]
+frame_ms = 31
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 0.2
+next = ["run"]
+intro = true
+
+[action.from_walk]
+surface = "floor"
+frames = ["to_walk17", "to_walk16", "to_walk15", "to_walk14", "to_walk13", "to_walk12", "to_walk11", "to_walk10", "to_walk09", "to_walk08", "to_walk07", "to_walk06", "to_walk05", "to_walk04", "to_walk03", "to_walk02", "to_walk01"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.sit_down]
+surface = "floor"
+frames = ["to_sit01", "to_sit02", "to_sit03", "to_sit04", "to_sit05", "to_sit06", "to_sit07", "to_sit08", "to_sit09", "to_sit10", "to_sit11", "to_sit12", "to_sit13", "to_sit14", "to_sit15", "to_sit16", "to_sit17"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 2
+idle_weight = 4
+next = ["sit"]
+
+[action.stand_up]
+surface = "floor"
+frames = ["to_sit17", "to_sit16", "to_sit15", "to_sit14", "to_sit13", "to_sit12", "to_sit11", "to_sit10", "to_sit09", "to_sit08", "to_sit07", "to_sit06", "to_sit05", "to_sit04", "to_sit03", "to_sit02", "to_sit01"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 6
+idle_weight = 4
+next = ["stand"]
+
+[action.lie_down]
+surface = "floor"
+frames = ["to_lie01", "to_lie02", "to_lie03", "to_lie04", "to_lie05", "to_lie06", "to_lie07", "to_lie08", "to_lie09", "to_lie10", "to_lie11", "to_lie12", "to_lie13", "to_lie14", "to_lie15", "to_lie16", "to_lie17", "to_lie18", "to_lie19", "to_lie20", "to_lie21", "to_lie22", "to_lie23", "to_lie24", "to_lie25", "to_lie26", "to_lie27", "to_lie28", "to_lie29", "to_lie30", "to_lie31", "to_lie32", "to_lie33"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 2
+next = ["creep", "doze_off"]
+
+[action.get_up]
+surface = "floor"
+frames = ["to_lie33", "to_lie32", "to_lie31", "to_lie30", "to_lie29", "to_lie28", "to_lie27", "to_lie26", "to_lie25", "to_lie24", "to_lie23", "to_lie22", "to_lie21", "to_lie20", "to_lie19", "to_lie18", "to_lie17", "to_lie16", "to_lie15", "to_lie14", "to_lie13", "to_lie12", "to_lie11", "to_lie10", "to_lie09", "to_lie08", "to_lie07", "to_lie06", "to_lie05", "to_lie04", "to_lie03", "to_lie02", "to_lie01"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["sit"]
+
+[action.doze_off]
+surface = "floor"
+frames = ["to_sleep01", "to_sleep02", "to_sleep03", "to_sleep04", "to_sleep05", "to_sleep06", "to_sleep07", "to_sleep08", "to_sleep09", "to_sleep10", "to_sleep11", "to_sleep12", "to_sleep13", "to_sleep14", "to_sleep15", "to_sleep16", "to_sleep17", "to_sleep18", "to_sleep19", "to_sleep20", "to_sleep21", "to_sleep22", "to_sleep23", "to_sleep24", "to_sleep25", "to_sleep26", "to_sleep27", "to_sleep28", "to_sleep29", "to_sleep30", "to_sleep31", "to_sleep32", "to_sleep33"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 2
+idle_weight = 4
+next = ["lie"]
+
+[action.wake_up]
+surface = "floor"
+frames = ["to_sleep33", "to_sleep32", "to_sleep31", "to_sleep30", "to_sleep29", "to_sleep28", "to_sleep27", "to_sleep26", "to_sleep25", "to_sleep24", "to_sleep23", "to_sleep22", "to_sleep21", "to_sleep20", "to_sleep19", "to_sleep18", "to_sleep17", "to_sleep16", "to_sleep15", "to_sleep14", "to_sleep13", "to_sleep12", "to_sleep11", "to_sleep10", "to_sleep09", "to_sleep08", "to_sleep07", "to_sleep06", "to_sleep05", "to_sleep04", "to_sleep03", "to_sleep02", "to_sleep01", "g_woke01", "g_woke02", "g_woke03", "g_woke04", "g_woke05", "g_woke06", "g_woke07", "g_woke08", "g_woke09", "g_woke10", "g_woke11", "g_woke12", "g_woke13", "g_woke14", "g_woke15", "g_woke16", "g_woke17", "g_woke18", "g_woke19", "g_woke20", "g_woke21", "g_woke22", "g_woke23", "g_woke24", "g_woke25", "g_woke26", "g_woke27", "g_woke28", "g_woke29", "g_woke30", "g_woke31", "g_woke32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["creep", "get_up"]
+
+[action.gesture_sleepy]
+surface = "floor"
+frames = ["g_sleepy01", "g_sleepy02", "g_sleepy03", "g_sleepy04", "g_sleepy05", "g_sleepy06", "g_sleepy07", "g_sleepy08", "g_sleepy09", "g_sleepy10", "g_sleepy11", "g_sleepy12", "g_sleepy13", "g_sleepy14", "g_sleepy15", "g_sleepy16", "g_sleepy17", "g_sleepy18", "g_sleepy19", "g_sleepy20", "g_sleepy21", "g_sleepy22", "g_sleepy23", "g_sleepy24", "g_sleepy25", "g_sleepy26", "g_sleepy27", "g_sleepy28", "g_sleepy29", "g_sleepy30", "g_sleepy31", "g_sleepy32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.gesture_sulky]
+surface = "floor"
+frames = ["g_sulky01", "g_sulky02", "g_sulky03", "g_sulky04", "g_sulky05", "g_sulky06", "g_sulky07", "g_sulky08", "g_sulky09", "g_sulky10", "g_sulky11", "g_sulky12", "g_sulky13", "g_sulky14", "g_sulky15", "g_sulky16", "g_sulky17", "g_sulky18", "g_sulky19", "g_sulky20", "g_sulky21", "g_sulky22", "g_sulky23", "g_sulky24", "g_sulky25", "g_sulky26", "g_sulky27", "g_sulky28", "g_sulky29", "g_sulky30", "g_sulky31", "g_sulky32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.gesture_bored]
+surface = "floor"
+frames = ["g_bored01", "g_bored02", "g_bored03", "g_bored04", "g_bored05", "g_bored06", "g_bored07", "g_bored08", "g_bored09", "g_bored10", "g_bored11", "g_bored12", "g_bored13", "g_bored14", "g_bored15", "g_bored16", "g_bored17", "g_bored18", "g_bored19", "g_bored20", "g_bored21", "g_bored22", "g_bored23", "g_bored24", "g_bored25", "g_bored26", "g_bored27", "g_bored28", "g_bored29", "g_bored30", "g_bored31", "g_bored32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.gesture_happy]
+surface = "floor"
+frames = ["g_happy01", "g_happy02", "g_happy03", "g_happy04", "g_happy05", "g_happy06", "g_happy07", "g_happy08", "g_happy09", "g_happy10", "g_happy11", "g_happy12", "g_happy13", "g_happy14", "g_happy15", "g_happy16", "g_happy17", "g_happy18", "g_happy19", "g_happy20", "g_happy21", "g_happy22", "g_happy23", "g_happy24", "g_happy25", "g_happy26", "g_happy27", "g_happy28", "g_happy29", "g_happy30", "g_happy31", "g_happy32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.gesture_calm]
+surface = "floor"
+frames = ["g_calm01", "g_calm02", "g_calm03", "g_calm04", "g_calm05", "g_calm06", "g_calm07", "g_calm08", "g_calm09", "g_calm10", "g_calm11", "g_calm12", "g_calm13", "g_calm14", "g_calm15", "g_calm16", "g_calm17", "g_calm18", "g_calm19", "g_calm20", "g_calm21", "g_calm22", "g_calm23", "g_calm24", "g_calm25", "g_calm26", "g_calm27", "g_calm28", "g_calm29", "g_calm30", "g_calm31", "g_calm32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 1
+idle_weight = 1
+next = ["stand"]
+
+[action.gesture_thrown]
+surface = "floor"
+frames = ["g_thrown01", "g_thrown02", "g_thrown03", "g_thrown04", "g_thrown05", "g_thrown06", "g_thrown07", "g_thrown08", "g_thrown09", "g_thrown10", "g_thrown11", "g_thrown12", "g_thrown13", "g_thrown14", "g_thrown15", "g_thrown16", "g_thrown17", "g_thrown18", "g_thrown19", "g_thrown20", "g_thrown21", "g_thrown22", "g_thrown23", "g_thrown24", "g_thrown25", "g_thrown26", "g_thrown27", "g_thrown28", "g_thrown29", "g_thrown30", "g_thrown31", "g_thrown32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 0
+idle_weight = 0
+next = ["stand"]
+
+[action.gesture_released]
+surface = "floor"
+frames = ["g_released01", "g_released02", "g_released03", "g_released04", "g_released05", "g_released06", "g_released07", "g_released08", "g_released09", "g_released10", "g_released11", "g_released12", "g_released13", "g_released14", "g_released15", "g_released16", "g_released17", "g_released18", "g_released19", "g_released20", "g_released21", "g_released22", "g_released23", "g_released24", "g_released25", "g_released26", "g_released27", "g_released28", "g_released29", "g_released30", "g_released31", "g_released32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 0
+idle_weight = 0
+next = ["stand"]
+
+[action.gesture_lunch]
+surface = "floor"
+frames = ["g_lunch01", "g_lunch02", "g_lunch03", "g_lunch04", "g_lunch05", "g_lunch06", "g_lunch07", "g_lunch08", "g_lunch09", "g_lunch10", "g_lunch11", "g_lunch12", "g_lunch13", "g_lunch14", "g_lunch15", "g_lunch16", "g_lunch17", "g_lunch18", "g_lunch19", "g_lunch20", "g_lunch21", "g_lunch22", "g_lunch23", "g_lunch24", "g_lunch25", "g_lunch26", "g_lunch27", "g_lunch28", "g_lunch29", "g_lunch30", "g_lunch31", "g_lunch32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 0
+idle_weight = 0
+next = ["stand"]
+
+[action.gesture_evening]
+surface = "floor"
+frames = ["g_evening01", "g_evening02", "g_evening03", "g_evening04", "g_evening05", "g_evening06", "g_evening07", "g_evening08", "g_evening09", "g_evening10", "g_evening11", "g_evening12", "g_evening13", "g_evening14", "g_evening15", "g_evening16", "g_evening17", "g_evening18", "g_evening19", "g_evening20", "g_evening21", "g_evening22", "g_evening23", "g_evening24", "g_evening25", "g_evening26", "g_evening27", "g_evening28", "g_evening29", "g_evening30", "g_evening31", "g_evening32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 0
+idle_weight = 0
+next = ["stand"]
+
+[action.gesture_late_night]
+surface = "floor"
+frames = ["g_late_night01", "g_late_night02", "g_late_night03", "g_late_night04", "g_late_night05", "g_late_night06", "g_late_night07", "g_late_night08", "g_late_night09", "g_late_night10", "g_late_night11", "g_late_night12", "g_late_night13", "g_late_night14", "g_late_night15", "g_late_night16", "g_late_night17", "g_late_night18", "g_late_night19", "g_late_night20", "g_late_night21", "g_late_night22", "g_late_night23", "g_late_night24", "g_late_night25", "g_late_night26", "g_late_night27", "g_late_night28", "g_late_night29", "g_late_night30", "g_late_night31", "g_late_night32"]
+frame_ms = 62
+speed = 0
+duration = [0.1, 0.1]
+weight = 0
+idle_weight = 0
+next = ["stand"]

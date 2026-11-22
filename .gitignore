@@ -5,3 +5,4 @@ __pycache__/
 assets/*/
 !assets/placeholder/
 dist/
+!assets/phoebe/
