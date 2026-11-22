@@ -16,7 +16,7 @@ from collections import deque
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 PET = Path(r"D:\study\phoebe-slack-bot")
 OUTPUT = Path(__file__).resolve().parent.parent / "ComfyUI_windows_portable" / "ComfyUI" / "output"
@@ -243,6 +243,28 @@ def cut_sequence(prefix: str, count: int, flip: bool, target, where: str = "floo
     return frames, offset
 
 
+ROPE_DROP = 12  # px she hangs below the ceiling, holding a rope in each hand
+ROPE_DARK, ROPE_LIGHT = (60, 40, 25, 255), (170, 120, 70, 255)
+
+
+def with_ropes(frame: Image.Image, ceiling_row: int) -> Image.Image:
+    """Draw a short rope from each raised hand up to the ceiling row, behind the hand."""
+    alpha = np.array(frame)[:, :, 3]
+    ropes = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(ropes)
+    third = SIZE // 3
+    for x0, x1 in ((0, third), (SIZE - third, SIZE)):
+        ys, xs = np.nonzero(alpha[:, x0:x1])
+        if len(ys) == 0:
+            continue
+        top = ys.argmin()
+        x, y = int(xs[top]) + x0, int(ys[top]) + 3  # a little into the fist, so the hand covers the end
+        draw.line([(x, ceiling_row), (x, y)], fill=ROPE_DARK, width=4)
+        draw.line([(x, ceiling_row), (x, y)], fill=ROPE_LIGHT, width=2)
+    ropes.alpha_composite(frame)
+    return ropes
+
+
 def steady(frames: list[Image.Image], loop: bool, reach: int = 2, tolerance: float = 28.0) -> list[Image.Image]:
     """Calm the shimmer of generated video: blend each pixel with the same pixel in the frames
     just before and after, but only where it barely differs, so real movement stays sharp.
@@ -324,8 +346,10 @@ def main() -> None:
     lists: dict[str, str] = {}
     written: dict[str, Image.Image] = {}
 
-    def save(name: str, frames: list[Image.Image]) -> None:
+    def save(name: str, frames: list[Image.Image], finish=None) -> None:
         frames = steady(frames, loop=name not in ONE_WAY)
+        if finish is not None:
+            frames = [finish(f) for f in frames]
         names = [f"{name}{i:02d}" for i in range(1, len(frames) + 1)]
         for frame_name, frame in zip(names, frames):
             frame.save(out / f"{frame_name}.png")
@@ -354,7 +378,13 @@ def main() -> None:
             print(f"no frames for {name} yet; skipped")
             continue
         frames, offset = cut_sequence(prefix, count, flip, target, where)
-        save(name, frames)
+        if where == "ceiling":
+            # Her arms are too short to reach above her head, so she hangs a little lower on two ropes.
+            ceiling_row = -offset[1] - ROPE_DROP
+            offset = (offset[0], offset[1] + ROPE_DROP)
+            save(name, frames, functools.partial(with_ropes, ceiling_row=ceiling_row))
+        else:
+            save(name, frames)
         lists[name + "_offset"] = f"[{offset[0]}, {offset[1]}]"
         # holding on: the first few frames back and forth, a small shift of weight instead of a frozen picture
         lists[name + "_hold"] = "[" + ", ".join(f'"{name}{i:02d}"' for i in (1, 2, 3, 4, 3, 2)) + "]"

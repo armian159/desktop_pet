@@ -21,6 +21,7 @@ WALL_GRAB_CHANCE = 0.5
 LOOK_RADIUS = 200.0
 DRAG_WINDOW = 0.1  # s of cursor history used to estimate throw speed
 DRAG_TILT_SPEED = 1200.0  # px/s that gives the strongest lean
+DRAG_LEAN_FROM = 400.0  # px/s of sideways drag below which she flails instead of leaning
 STILL_SPEED = 30.0
 RESIST_AFTER = 1.0
 CELL = 128  # frame size the offsets in actions.toml are written for
@@ -422,8 +423,8 @@ class Pet:
         x, y = round(body.x), round(body.y)
         facing = self._facing_right
         if self.mode is Mode.DRAGGED:
-            if self._still >= RESIST_AFTER:
-                frame = self._frame("resist")
+            if abs(self._drag_v[0]) < DRAG_LEAN_FROM:
+                frame = self._frame("resist")  # held: she flails; only a hard swing makes her lean
             else:
                 frames = self._actions["drag"].frames
                 lean = (self._drag_v[0] + DRAG_TILT_SPEED) / (2 * DRAG_TILT_SPEED)

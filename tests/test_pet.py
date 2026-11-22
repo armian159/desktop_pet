@@ -87,7 +87,21 @@ def test_drag_frame_follows_horizontal_speed():
     for _ in range(30):
         pet.drag_to((1260, 500), 1 / 60)
     still = pet.tick(1 / 60, (1260, 500)).frame
-    assert fast_right == "shime9" and still == "shime1"
+    assert fast_right == "shime9" and still in pet._actions["resist"].frames
+
+
+def test_flails_as_soon_as_she_is_picked_up():
+    pet = make()
+    pet.grab((960, 500))
+    assert pet.tick(1 / 60, (960, 500)).frame in pet._actions["resist"].frames
+
+
+def test_flails_while_dragged_slowly():
+    pet = make()
+    pet.grab((960, 500))
+    for i in range(10):
+        pet.drag_to((960 + i * 4, 500), 1 / 60)  # 240 px/s
+    assert pet.tick(1 / 60, (1000, 500)).frame in pet._actions["resist"].frames
 
 
 def test_held_still_starts_struggling():
