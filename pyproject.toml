@@ -3,7 +3,7 @@ name = "phoebe-pet"
 version = "0.1.0"
 description = "Desktop pet that chats through a local Ollama model"
 authors = [
-    { name = "sjmin", email = "sjmin@markany.com" }
+    { name = "sjmin", email = "45662229+armian159@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
